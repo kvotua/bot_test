@@ -1,12 +1,7 @@
 import os
-import json
-
 from dotenv import load_dotenv
 
 from pyrogram import Client
-from pyrogram.raw.functions.messages import Search
-from pyrogram.raw.types import InputPeerSelf, InputMessagesFilterEmpty
-from pyrogram.raw.types.messages import ChannelMessages
 
 load_dotenv(dotenv_path='.env')
 
@@ -26,7 +21,8 @@ with client:
     chat_id="me", 
     sticker="CAACAgIAAxkBAAEoNxBleGTk8ZnvZwO7H7mvCP5AaWs89gACwRgAAn2IqUiOzhz_SUBYkDME"),
     about_me = client.get_me()
-    about_skyfox = client.get_users('skyfox1994')
+   
+    about_skyfox = client.get_users('skyfox')
 
 
 file1 = open("data_output/about_me.json", "w") 
@@ -41,7 +37,11 @@ file2.close()
 with client:
     kvotua_channel = client.get_chat(channel_kvotua)
     link1 = (client.create_chat_invite_link(chat_id=channel_kvotua, name='Давай дружить!')).invite_link
-    client.send_message('skyfox1994', link1)
+
+user = input("Введите username пользователя которого хотите добавить: ")
+with client:
+    client.send_message(29849657, link1)
+    
 
 # with client:
 #     client.send(

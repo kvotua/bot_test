@@ -1,9 +1,9 @@
 {
     "_": "User",
-    "id": 444669964,
+    "id": 5865732869,
     "is_self": false,
-    "is_contact": true,
-    "is_mutual_contact": true,
+    "is_contact": false,
+    "is_mutual_contact": false,
     "is_deleted": false,
     "is_bot": false,
     "is_verified": false,
@@ -11,17 +11,9 @@
     "is_scam": false,
     "is_fake": false,
     "is_support": false,
-    "first_name": "Александрь",
+    "first_name": "Clook",
+    "last_name": "Werk",
     "status": "offline",
-    "last_online_date": "2023-12-12 20:16:12",
-    "username": "skyfox1994",
-    "dc_id": 2,
-    "phone_number": "*********",
-    "photo": {
-        "_": "ChatPhoto",
-        "small_file_id": "AQADAgADt6cxGwwggRoAEAIAAwwggRoABAzQbH8N60HeAAQeBA",
-        "small_photo_unique_id": "AgADt6cxGwwggRo",
-        "big_file_id": "AQADAgADt6cxGwwggRoAEAMAAwwggRoABAzQbH8N60HeAAQeBA",
-        "big_photo_unique_id": "AgADt6cxGwwggRo"
-    }
+    "last_online_date": "2023-05-08 17:53:52",
+    "username": "Skyfox"
 }
