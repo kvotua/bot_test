@@ -1,14 +1,6 @@
-import os
-from dotenv import load_dotenv
-
 from pyrogram import Client
 
-load_dotenv(dotenv_path='.env')
-
-api_id = os.getenv('api_id')
-api_hash = os.getenv('api_hash')
-channel_kvotua = os.getenv('test_channels')
-channel_id = os.getenv('test_channel_id')
+from env import *
 
 client = Client(
     'my_account',

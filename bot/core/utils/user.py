@@ -5,13 +5,15 @@ class User(Record):
     username: str
     firstname: str
     lastname: str
+    role: str
 
     def update_data(self):
         self.user_id=self['user_id']
         self.username=self['username']
         self.firstname=self['firstname']
         self.lastname=self['lastname']
+        self.role=self['role']
 
     def __str__(self):
-        return f'{self.user_id} {self.username} {self.firstname} {self.lastname}'
+        return f'user_id:{self.user_id} username:{self.username} firstname:{self.firstname} lastname:{self.lastname} role:{self.role}'
     
