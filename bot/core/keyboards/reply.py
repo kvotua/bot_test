@@ -19,11 +19,14 @@ reply_reg_point_v1 = ReplyKeyboardMarkup(keyboard=[
 reply_reg_point_v2 = ReplyKeyboardMarkup(keyboard=[
     [
         KeyboardButton(
-            text='Зарегистрировать торговую точку'
+            text='Выбрать торговую точку'
         )
     ],
     [
         KeyboardButton(
+            text='Зарегистрировать торговую точку'
+        ),
+         KeyboardButton(
             text='Отредактировать торговую точку'
         )
     ]

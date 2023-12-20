@@ -8,9 +8,11 @@ from aiogram.filters import Command, CommandStart
 import asyncpg
 
 from core.handlers.basic import *
+from core.handlers.order import *
 from core.middlewares.countermiddleware import CounterMiddleware
 from core.middlewares.dbmiddleware import DbSession
 from core.utils.commands import set_commands
+from core.utils.orderstate import *
 from env import db_host, bot_token, user_id_for_push, db_name, db_user, db_pass
 
 async def create_pool():
@@ -42,6 +44,8 @@ async def start():
 
     dp.message.register(get_start, Command(commands=['start']))
     dp.message.register(get_cancel,Command(commands=['cancel']))
+
+    dp.message.register(get_start_order, OrderForm.GET_ORDER)
 
     try:
         await dp.start_polling(bot)
