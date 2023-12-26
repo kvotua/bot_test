@@ -56,8 +56,20 @@ class Request:
             return None
         query = f'SELECT * FROM point_company WHERE company_id={company_id}'
         points = await self.connector.fetch(query=query, record_class=Point)
-        if points == None:
+        if points.__len__() == 0:
             return None
         for i in range(len(points)):
             points[i].update_data()            
         return points
+    
+    async def get_point(self, id):
+        query = f'SELECT * FROM point_company WHERE id={id}'
+        point = await self.connector.fetchrow(query=query, record_class=Point)
+        if point == None:
+            return None
+        point.update_data()
+        return point 
+
+    async def save_poduct(self, name):
+        query = f'INSERT INTO products (name) VALUES ({name})'
+        await self.connector.execute(query=query)

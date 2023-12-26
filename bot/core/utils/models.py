@@ -50,7 +50,7 @@ class Point(Record):
         self.name = self['name']
 
     def __str__(self):
-        return f'{self.id} "{self.name}" по адрессу, {self.city}, {self.address}'
+        return f'{self.id}) "{self.name}" по адрессу, {self.city}, {self.address}'
     
 async def get_keyboard(list: list):
     keybord_points = ReplyKeyboardBuilder()
