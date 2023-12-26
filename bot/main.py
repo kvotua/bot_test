@@ -8,7 +8,6 @@ from aiogram.filters import Command, CommandStart
 import asyncpg
 
 from core.handlers.basic import *
-from core.handlers.order import *
 from core.middlewares.countermiddleware import CounterMiddleware
 from core.middlewares.dbmiddleware import DbSession
 from core.utils.commands import set_commands
@@ -25,6 +24,7 @@ async def start_bot(bot: Bot):
 async def stop_bot(bot: Bot):
     await bot.send_message(user_id_for_push, text=f'<tg-spoiler>{socket.gethostname()}</tg-spoiler> отключил бота')
 
+
 async def start():
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s - [%(levelname)s] - %(name)s - "
@@ -33,6 +33,7 @@ async def start():
 
     bot = Bot(bot_token, parse_mode='HTML')
     dp = Dispatcher()
+    dp.include_router(form_router)
 
     pool_connect = await create_pool()
 
@@ -41,11 +42,6 @@ async def start():
 
     dp.startup.register(start_bot)
     dp.shutdown.register(stop_bot)
-
-    dp.message.register(get_start, Command(commands=['start']))
-    dp.message.register(get_cancel,Command(commands=['cancel']))
-
-    dp.message.register(get_start_order, OrderForm.GET_ORDER)
 
     try:
         await dp.start_polling(bot)

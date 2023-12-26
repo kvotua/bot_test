@@ -15,6 +15,11 @@ async def set_commands(bot: Bot):
             command='cancel',
             description='Сбросить'
         )
+        ,
+        BotCommand(
+            command='clean',
+            description='Очистить'
+        )
     ]
 
     await bot.set_my_commands(commands, BotCommandScopeDefault())
