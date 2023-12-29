@@ -40,10 +40,12 @@ reply_admin = ReplyKeyboardMarkup(keyboard=[
     ],
     [
         KeyboardButton(
-            text='Зарегистрировать торговую точку самостоятельно'
-        ),
-         KeyboardButton(
-            text='Добавить товар'
+            text='Просмотреть товары'
+        )
+    ],
+    [
+        KeyboardButton(
+            text="Добавить товар"
         )
     ]
 ], resize_keyboard=True, one_time_keyboard=True, selective=True)
