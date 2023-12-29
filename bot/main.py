@@ -5,6 +5,7 @@ import socket
 from aiogram import Bot, Dispatcher, Router, types
 from aiogram.types import Message
 from aiogram.filters import Command, CommandStart
+from aiogram.types import ReplyKeyboardRemove
 import asyncpg
 
 from core.handlers.basic import *
@@ -19,10 +20,10 @@ async def create_pool():
 
 async def start_bot(bot: Bot):
     await set_commands(bot)
-    await bot.send_message(user_id_for_push, text=f'<tg-spoiler>{socket.gethostname()}</tg-spoiler> запустил бота')
+    await bot.send_message(user_id_for_push, text=f'<tg-spoiler>{socket.gethostname()}</tg-spoiler> запустил бота', reply_markup=ReplyKeyboardRemove())
 
 async def stop_bot(bot: Bot):
-    await bot.send_message(user_id_for_push, text=f'<tg-spoiler>{socket.gethostname()}</tg-spoiler> отключил бота')
+    await bot.send_message(user_id_for_push, text=f'<tg-spoiler>{socket.gethostname()}</tg-spoiler> отключил бота', reply_markup=ReplyKeyboardRemove())
 
 
 async def start():
