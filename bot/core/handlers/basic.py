@@ -1,8 +1,10 @@
 from aiogram import Bot, Router, F
-from aiogram.types import Message
-from aiogram.types import ReplyKeyboardRemove
+from aiogram.types import Message, CallbackQuery
+from aiogram.types import ReplyKeyboardRemove, InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.fsm.context import FSMContext
+from aiogram.filters.callback_data import CallbackData
 from aiogram.filters import Command, CommandStart
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from core.utils.dbconnect import Request
 from core.keyboards.reply import *
@@ -11,9 +13,19 @@ from core.utils.formsstate import *
 
 import logging
 
-form_router = Router()
+rt = Router()
 
-@form_router.message(CommandStart())
+@rt.message(Command("cancel"))
+async def get_cancel(message: Message, bot: Bot, state: FSMContext):
+    await message.answer("Cancelled.", reply_markup=ReplyKeyboardRemove())
+    current_state = await state.get_state()
+    if current_state is None:
+        return
+
+    logging.info("Cancelling state %r", current_state)
+    await state.clear()
+
+@rt.message(CommandStart())
 async def get_start(message: Message, bot: Bot, counter: str, request: Request, state: FSMContext):
     user_is = await request.user_exist(message.from_user.id)
 
@@ -42,18 +54,18 @@ async def get_start(message: Message, bot: Bot, counter: str, request: Request, 
 
 #################### reg client ####################
 
-@form_router.message(RegLegalEntityForm.start)
+@rt.message(RegLegalEntityForm.start)
 async def add_legel_entity(message: Message, request: Request, state: FSMContext):
     await state.set_state(RegLegalEntityForm.kind)
     await message.answer(f'Введите вид юр. лица (ИП, ООО, ...)')
 
-@form_router.message(RegLegalEntityForm.kind)
+@rt.message(RegLegalEntityForm.kind)
 async def add_legel_entity(message: Message, request: Request, state: FSMContext):
     await state.update_data(kind=message.text)    
     await message.answer(f'Введите название Вашего юр. лица (Иван Иванович Иванов, Виктория, ...)')
     await state.set_state(RegLegalEntityForm.name)
 
-@form_router.message(RegLegalEntityForm.name)
+@rt.message(RegLegalEntityForm.name)
 async def add_legel_entity(message: Message, request: Request, state: FSMContext):
     await state.update_data(name=message.text)
 
@@ -71,7 +83,7 @@ async def add_legel_entity(message: Message, request: Request, state: FSMContext
 
 #################### order ####################
 
-@form_router.message(OrderForm.start)
+@rt.message(OrderForm.start)
 async def choose_point(message: Message, request: Request, state: FSMContext):
     if message.text == 'Выбрать торговую точку':
         points = await request.get_all_point_company(message.from_user.id)
@@ -81,30 +93,54 @@ async def choose_point(message: Message, request: Request, state: FSMContext):
         await state.set_state(OrderForm.add_point)
         await message.answer(f'Регистрация')
 
-@form_router.message(OrderForm.choose_products)
+# inline_product = InlineKeyboardButton(text='Первая кнопка!', callback_data=ProductButton(name='product_add'))
+# inline_products = InlineKeyboardMarkup(inline_keyboard=[
+#     [
+#         inline_product
+#     ]
+#     ]) 
+
+kb_products_builder = InlineKeyboardBuilder()
+kb_products_builder.button(text= 'Product1', callback_data=ProductButton(product_name='product1_add_bucket'))
+kb_products_builder.button(text= 'Product2', callback_data=ProductButton(product_name='product2_add_bucket'))
+
+@rt.message(OrderForm.choose_products)
 async def add_point(message: Message, request: Request, state: FSMContext):
+    await state.set_state(OrderForm.count)
     point_id = message.text[0]
     await state.update_data(point_id = point_id)
-    await message.answer(f'Выберете товары')
+    products = await request.get_products()
+    await message.answer(text=f'Выберете товары', reply_markup=kb_products_builder.as_markup())
 
-@form_router.message(OrderForm.add_point)
+@rt.message(OrderForm.count)
+async def add_point(message: Message, request: Request, state: FSMContext):
+    await message.answer(f'Выберете')
+
+# трабл с кнопками
+@rt.callback_query(ProductButton.filter())
+async def process_callback_button1(call: CallbackQuery, bot: Bot):
+    await call.answer(f'Нажата первая кнопка!')
+
+#################### order ####################
+
+@rt.message(OrderForm.add_point)
 async def add_point(message: Message, request: Request, state: FSMContext):
     await state.set_state(OrderForm.city)
     await message.answer(f'Введите город в котором находится магазин')
 
-@form_router.message(OrderForm.city)
+@rt.message(OrderForm.city)
 async def add_point(message: Message, request: Request, state: FSMContext):
     await state.set_state(OrderForm.address)
     await state.update_data(city=message.text)
     await message.answer(f'Введите адрес в котором находится магазин')    
 
-@form_router.message(OrderForm.address)
+@rt.message(OrderForm.address)
 async def add_point(message: Message, request: Request, state: FSMContext):
     await state.set_state(OrderForm.name)
     await state.update_data(address=message.text)
     await message.answer(f'Введите название магазина')  
 
-@form_router.message(OrderForm.name)
+@rt.message(OrderForm.name)
 async def add_point(message: Message, request: Request, state: FSMContext):
     await state.update_data(name=message.text)
     data = await state.get_data()
@@ -117,7 +153,7 @@ async def add_point(message: Message, request: Request, state: FSMContext):
 
 #################### product add ####################
 
-@form_router.message(ProductForm.start)
+@rt.message(ProductForm.start)
 async def add_product(message: Message, request: Request, state: FSMContext):
     mes = message.text
     if mes == "Добавить товар":
@@ -132,7 +168,7 @@ async def add_product(message: Message, request: Request, state: FSMContext):
             await message.answer(f'Заказов нет', reply_markup=reply_admin)
 
 
-@form_router.message(ProductForm.save)
+@rt.message(ProductForm.save)
 async def add_product(message: Message, request: Request, state: FSMContext):
     names = message.text.split("\n")
     for i in range(len(names)):
@@ -141,14 +177,3 @@ async def add_product(message: Message, request: Request, state: FSMContext):
     await state.clear()
 
 #################### product add ####################
-
-@form_router.message(Command("cancel"))
-@form_router.message(F.text.casefold() == "cancel")
-async def get_cancel(message: Message, bot: Bot, state: FSMContext):
-    await message.answer("Cancelled.", reply_markup=ReplyKeyboardRemove())
-    current_state = await state.get_state()
-    if current_state is None:
-        return
-
-    logging.info("Cancelling state %r", current_state)
-    await state.clear()

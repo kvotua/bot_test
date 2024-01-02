@@ -2,6 +2,7 @@ from asyncpg import Record
 from aiogram.types import KeyboardButton, KeyboardButtonPollType, ReplyKeyboardMarkup
 from aiogram.utils.keyboard import ReplyKeyboardBuilder
 import datetime
+from aiogram.filters.callback_data import CallbackData
 
 class User(Record):
     user_id: int
@@ -88,3 +89,6 @@ class Bucket(Record):
 class Product(Record):
     id: int
     name: str
+
+class ProductButton(CallbackData, prefix='product'):
+    product_name: str

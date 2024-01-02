@@ -34,7 +34,7 @@ async def start():
 
     bot = Bot(bot_token, parse_mode='HTML')
     dp = Dispatcher()
-    dp.include_router(form_router)
+    dp.include_router(rt)
 
     pool_connect = await create_pool()
 

@@ -10,6 +10,7 @@ class OrderForm(StatesGroup):
 
     set_point = State()
     choose_products = State()
+    count = State()
 
 class RegLegalEntityForm(StatesGroup):
     start = State()

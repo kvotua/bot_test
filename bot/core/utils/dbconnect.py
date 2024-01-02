@@ -35,6 +35,7 @@ class Request:
         return company['id']
     
     async def add_company(self, kind_name, user_id):
+        kind_name = kind_name.upper()
         query = f"INSERT INTO company (legal_entity) VALUES ('{kind_name}')"
         await self.connector.execute(query)
         query = f"SELECT id FROM company WHERE legal_entity='{kind_name}'"
