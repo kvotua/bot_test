@@ -93,33 +93,27 @@ async def choose_point(message: Message, request: Request, state: FSMContext):
         await state.set_state(OrderForm.add_point)
         await message.answer(f'Регистрация')
 
-# inline_product = InlineKeyboardButton(text='Первая кнопка!', callback_data=ProductButton(name='product_add'))
-# inline_products = InlineKeyboardMarkup(inline_keyboard=[
-#     [
-#         inline_product
-#     ]
-#     ]) 
-
-kb_products_builder = InlineKeyboardBuilder()
-kb_products_builder.button(text= 'Product1', callback_data=ProductButton(product_name='product1_add_bucket'))
-kb_products_builder.button(text= 'Product2', callback_data=ProductButton(product_name='product2_add_bucket'))
-
 @rt.message(OrderForm.choose_products)
 async def add_point(message: Message, request: Request, state: FSMContext):
     await state.set_state(OrderForm.count)
-    point_id = message.text[0]
-    await state.update_data(point_id = point_id)
+    point = message.text.split('"')[1]
+    await message.answer(f'Выбранная торговая точка: {point}')
+    await state.update_data(point = point)
     products = await request.get_products()
+    kb_products_builder = InlineKeyboardBuilder()
+    for i in range(len(products)):
+        kb_products_builder.button(text= f'{products[i]}', callback_data=ProductButton(product_name=f'{products[i]}'))
+    kb_products_builder.adjust(3)
     await message.answer(text=f'Выберете товары', reply_markup=kb_products_builder.as_markup())
 
 @rt.message(OrderForm.count)
 async def add_point(message: Message, request: Request, state: FSMContext):
     await message.answer(f'Выберете')
 
-# трабл с кнопками
 @rt.callback_query(ProductButton.filter())
 async def process_callback_button1(call: CallbackQuery, bot: Bot):
-    await call.answer(f'Нажата первая кнопка!')
+    product = call.data.split(':')[1].split('_')[0]
+    await call.answer(f'{product} в корзине')
 
 #################### order ####################
 
@@ -138,7 +132,7 @@ async def add_point(message: Message, request: Request, state: FSMContext):
 async def add_point(message: Message, request: Request, state: FSMContext):
     await state.set_state(OrderForm.name)
     await state.update_data(address=message.text)
-    await message.answer(f'Введите название магазина')  
+    await message.answer(f'Введите название магазина без кавычек')  
 
 @rt.message(OrderForm.name)
 async def add_point(message: Message, request: Request, state: FSMContext):
