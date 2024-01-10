@@ -7,10 +7,16 @@ class OrderForm(StatesGroup):
     name = State()
     city = State()
     address = State()
+    save = State()
 
     set_point = State()
     choose_products = State()
     count = State()
+
+    check = State()
+
+    edit = State()
+    save_order = State()
 
 class RegLegalEntityForm(StatesGroup):
     start = State()

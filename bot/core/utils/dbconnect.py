@@ -1,4 +1,5 @@
 import asyncpg
+import datetime
 from core.utils.models import *
 
 class Request:
@@ -76,12 +77,23 @@ class Request:
         company_id = await self.user_company_exist(user_id)
         if company_id == None:
             return None
-        query = f"INSERT INTO point_company (name, address, city, company_id) VALUES ('{name}', '{address}', '{city}', {company_id})"
+        date = datetime.datetime.now()
+        query = f"INSERT INTO point_company (name, address, city, company_id, date_reg) VALUES ('{name}', '{address}', '{city}', {company_id}, '{datetime.datetime.now():%Y-%m-%d %H:%M:%S}')"
         await self.connector.execute(query=query)
 
     async def save_poduct(self, names):
+        end_s = names[-1]
+        if end_s == ' ':
+            names = names[: -1]
         query = f"INSERT INTO products (name) VALUES ('{names}');"
         await self.connector.execute(query=query)
+
+    async def exist_name_product(self, name):
+        query = f"SELECT name FROM products WHERE name='{name}'"
+        records = await self.connector.fetch(query=query)
+        if records.__len__() == 0:
+            return False
+        return True
 
     async def get_products(self):
         query = f"SELECT name FROM products"

@@ -36,16 +36,41 @@ reply_admin = ReplyKeyboardMarkup(keyboard=[
     [
         KeyboardButton(
             text='Просмотреть заказы'
-        )
-    ],
-    [
+        ),
         KeyboardButton(
             text='Просмотреть товары'
-        )
-    ],
-    [
+        ),
         KeyboardButton(
             text="Добавить товар"
         )
     ]
 ], resize_keyboard=True, one_time_keyboard=True, selective=True)
+
+reply_true_info = ReplyKeyboardMarkup(keyboard=[
+    [
+        KeyboardButton(
+            text='Все верно'
+        ),
+        KeyboardButton(
+            text="Начать заново"
+        ),
+        KeyboardButton(
+            text='Вернуться в начало'
+        )
+    ]
+], resize_keyboard=True, one_time_keyboard=True, selective=True)
+
+reply_true_order = ReplyKeyboardMarkup(keyboard=[
+    [
+        KeyboardButton(
+            text='Все верно'
+        ),
+        KeyboardButton(
+            text='Отредактировать'
+        ),
+        KeyboardButton(
+            text="Начать заново"
+        )
+    ]
+], resize_keyboard=True, one_time_keyboard=True, selective=True)
+

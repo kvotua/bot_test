@@ -84,18 +84,17 @@ async def add_legel_entity(message: Message, request: Request, state: FSMContext
 #################### order ####################
 
 @rt.message(OrderForm.start)
-async def choose_point(message: Message, request: Request, state: FSMContext):
+async def point(message: Message, request: Request, state: FSMContext):
     if message.text == 'Выбрать торговую точку':
         points = await request.get_all_point_company(message.from_user.id)
         await message.answer(text="Выберете торговую точку",reply_markup=await get_keyboard(points))
         await state.set_state(OrderForm.choose_products)
     if message.text == 'Зарегистрировать торговую точку':
-        await state.set_state(OrderForm.add_point)
-        await message.answer(f'Регистрация')
+        await state.set_state(OrderForm.city)
+        await message.answer(f'Введите город в котором находится магазин')
 
 @rt.message(OrderForm.choose_products)
-async def add_point(message: Message, request: Request, state: FSMContext):
-    await state.set_state(OrderForm.count)
+async def choose_point(message: Message, request: Request, state: FSMContext):
     point = message.text.split('"')[1]
     await message.answer(f'Выбранная торговая точка: {point}')
     await state.update_data(point = point)
@@ -103,17 +102,63 @@ async def add_point(message: Message, request: Request, state: FSMContext):
     kb_products_builder = InlineKeyboardBuilder()
     for i in range(len(products)):
         kb_products_builder.button(text= f'{products[i]}', callback_data=ProductButton(product_name=f'{products[i]}'))
+    kb_products_builder.button(text= f'Завершить набор', callback_data='End')
     kb_products_builder.adjust(3)
+    
     await message.answer(text=f'Выберете товары', reply_markup=kb_products_builder.as_markup())
 
-@rt.message(OrderForm.count)
-async def add_point(message: Message, request: Request, state: FSMContext):
-    await message.answer(f'Выберете')
+
+products_dict = {}
 
 @rt.callback_query(ProductButton.filter())
-async def process_callback_button1(call: CallbackQuery, bot: Bot):
+async def process_callback_button1(call: CallbackQuery, bot: Bot,  state: FSMContext):
+    await bot.delete_message(chat_id=call.message.chat.id, message_id=call.message.message_id)
+    await state.set_state(OrderForm.count)
     product = call.data.split(':')[1].split('_')[0]
-    await call.answer(f'{product} в корзине')
+    await state.update_data(product_count = product)
+    products_dict[product] = 0
+    await call.message.answer(f'Сколько кег "{product}" вы хотите заказать?')
+    # if products_dict.get(product) == None:
+    #     products_dict[product] = 0
+
+@rt.message(OrderForm.count)
+async def count_point(message: Message, request: Request, state: FSMContext):
+    await state.update_data(count = message.text)
+    data = await state.get_data()
+    product_count = data["product_count"]
+    products_dict[product_count] = message.text
+    products = await request.get_products()
+    kb_products_builder = InlineKeyboardBuilder()
+    for i in range(len(products)):
+        kb_products_builder.button(text= f'{products[i]}', callback_data=ProductButton(product_name=f'{products[i]}'))
+    kb_products_builder.button(text= f'Завершить набор', callback_data='End')
+    kb_products_builder.adjust(3)
+    await message.answer(f'Выберете следующую позицию', reply_markup=kb_products_builder.as_markup())
+
+@rt.callback_query(F.data == 'End')
+async def process_callback_button1(call: CallbackQuery, bot: Bot,  state: FSMContext, request: Request):
+    await state.set_state(OrderForm.check)
+    
+    await bot.delete_message(chat_id=call.message.chat.id, message_id=call.message.message_id)
+    await call.message.answer(f'Ваш заказ:')
+    for key, value in products_dict.items():
+        await call.message.answer(f'{key} - {value} кег \n')
+    pr = products_dict
+    products_dict.clear()
+    await call.message.answer(f'Все верно?', reply_markup=reply_true_order)
+    
+@rt.message(OrderForm.check)
+async def check(message: Message, request: Request, state: FSMContext):
+    answer = message.text
+    if answer == 'Все верно':
+        await state.set_state(OrderForm.save)
+        await message.answer(f'Верно')
+    if answer == 'Отредактировать':
+        await state.set_state(OrderForm.edit)
+        await message.answer(f'Надо редактировать')
+    if answer == "Начать заново":
+        await state.set_state(OrderForm.choose_products)
+        await message.answer(f'Начать заново')
 
 #################### order ####################
 
@@ -123,25 +168,39 @@ async def add_point(message: Message, request: Request, state: FSMContext):
     await message.answer(f'Введите город в котором находится магазин')
 
 @rt.message(OrderForm.city)
-async def add_point(message: Message, request: Request, state: FSMContext):
+async def city_point(message: Message, request: Request, state: FSMContext):
     await state.set_state(OrderForm.address)
     await state.update_data(city=message.text)
     await message.answer(f'Введите адрес в котором находится магазин')    
 
 @rt.message(OrderForm.address)
-async def add_point(message: Message, request: Request, state: FSMContext):
+async def address_point(message: Message, request: Request, state: FSMContext):
     await state.set_state(OrderForm.name)
     await state.update_data(address=message.text)
     await message.answer(f'Введите название магазина без кавычек')  
 
 @rt.message(OrderForm.name)
-async def add_point(message: Message, request: Request, state: FSMContext):
+async def name_point(message: Message, request: Request, state: FSMContext):
+    await state.set_state(OrderForm.save)
     await state.update_data(name=message.text)
+    data = await state.get_data()
+    await message.answer(f'Проверьте информацию о торговой точке, все верно?')
+    await message.answer(f'"{data["name"]}" по адресу {data["address"]}, г. {data["city"]}', reply_markup=reply_true_info)
+
+@rt.message(OrderForm.save, F.text =='Все верно')
+async def save_point(message: Message, request: Request, state: FSMContext):
     data = await state.get_data()
     await request.add_point(data["name"], data["address"], data["city"],  message.from_user.id)
     await state.clear()
     await state.set_state(OrderForm.start)
+    await message.answer(f'Чтобы сделать заказ заводу Ponarth, нужно выбрать или добавить магазин')
     await message.answer(f'Теперь выберете дальнейшее действие', reply_markup=reply_reg_point_v2)
+
+@rt.message(OrderForm.save, F.text =="Начать заново")
+async def renew_point(message: Message, request: Request, state: FSMContext):
+    await state.clear()
+    await state.set_state(OrderForm.city)
+    await message.answer(f'Введите город в котором находится магазин')
 
 #################### order ####################
 
@@ -163,11 +222,21 @@ async def add_product(message: Message, request: Request, state: FSMContext):
 
 
 @rt.message(ProductForm.save)
-async def add_product(message: Message, request: Request, state: FSMContext):
+async def save_product(message: Message, request: Request, state: FSMContext):
     names = message.text.split("\n")
+    count = 0
     for i in range(len(names)):
-        await request.save_poduct(names[i])
-        await message.answer(f'{names[i]} - Успешно добавлено')
+        query_answer = await request.exist_name_product(names[i])
+        if query_answer == True:
+            await message.answer(f'Позиция с именем "{names[i]}" уже существует')
+        else:
+            await request.save_poduct(names[i])
+            await message.answer(f'{names[i]} - Успешно добавлено')
+            count += 1
     await state.clear()
+    await message.answer(f'Позиций добавлено: {count}', )
+    await state.set_state(ProductForm.start)
+    await message.answer(f'Выберете дальнейшее действие.', reply_markup=reply_admin)
+
 
 #################### product add ####################

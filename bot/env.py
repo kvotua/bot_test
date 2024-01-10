@@ -12,3 +12,4 @@ db_host = os.getenv('DB_HOST')
 db_name = os.getenv('POSTGRES_DB')
 db_user = os.getenv('POSTGRES_USER')
 db_pass = os.getenv('POSTGRES_PASSWORD')
+# host = os.environ['HOST_TRUE']
