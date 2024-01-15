@@ -34,16 +34,24 @@ reply_reg_point_v2 = ReplyKeyboardMarkup(keyboard=[
 
 reply_admin = ReplyKeyboardMarkup(keyboard=[
     [
+        
+        
         KeyboardButton(
             text='Просмотреть заказы'
-        ),
+        )
+    ],
+        
+    [
         KeyboardButton(
             text='Просмотреть товары'
-        ),
+        )
+    ],
+    [
         KeyboardButton(
             text="Добавить товар"
         )
     ]
+    
 ], resize_keyboard=True, one_time_keyboard=True, selective=True)
 
 reply_true_info = ReplyKeyboardMarkup(keyboard=[
@@ -73,4 +81,16 @@ reply_true_order = ReplyKeyboardMarkup(keyboard=[
         )
     ]
 ], resize_keyboard=True, one_time_keyboard=True, selective=True)
+
+reply_is_delivery = ReplyKeyboardMarkup(keyboard=[
+    [
+        KeyboardButton(
+            text='Доставка на адрес торговой точки'
+        ),
+        KeyboardButton(
+            text='Самовывоз'
+        )
+    ]
+], resize_keyboard=True, one_time_keyboard=True, selective=True)
+
 

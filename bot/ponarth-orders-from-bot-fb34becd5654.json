@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "ponarth-orders-from-bot",
+  "private_key_id": "fb34becd5654a573545407424c02990c4392684a",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCj4DPWwZaWrM7U\nx9o2UVbMQFZMGWD+OnDWXhmLog2sBdJpctzIetl1TTtpfzXjkLdYLTyhSbiLv0dk\nZeQPA0llAbbptsZU9FsQLoLSXErmaeYQR2SvRWal95CpumEz5til03fxRjQlTg0G\n+5Zid2Wvtg/6zxgmaL5+ealh8wWdHgDTnEwvZlqz7FjOeBBe58SYChN8DRkBz24N\n8MVk0hsBXkYh/VvH/O7U5mhzUeu1JxNNw6IKF61ehq9rDlkheIWKhkSrwHHLmNy0\nA7EYmSeEYaWka7XwCSiejdwCrW6jniD9oIR50cApTrkhyt02JKH2q7LEwvYwAO2f\namAfxLKjAgMBAAECggEAHVA+lZy9Xih9Ouyg6PR1zUV46lXj1rYHdyEP+r07KtlD\nwR8NxULMYUI2bXGW5yT81uYIoWU5gK3vjFL5j4HsAAhlerr6ETpAi812E0D1GPA6\nehD7PqrwaKG3G9U+C/WwLUF9hAglzcJ/bA9W4DgxVVQA2cFvtXcpFCCZHu9EwszQ\ntzz9EI1wCnF1PZudWuvYNrwtLyHoJVKY6twWdvGRicQ/8LnLJjnk4of6LPdVaiuy\n+xm5cpo0Fkk/kr4X1Gfh+ZFELaTXxo35mS/fLLYX+O1kIXOEfTGv8FT5MvMYNCke\nkSWJEUcQD960qIy4Tu9ByvwSb6IMFfe2bGgPEtPmoQKBgQDaFoRuncOn72mwgn1k\nkePInYyzlsKG10qMYaUnd2I2SXYQoTvInx79Y7gJV84rgda5d0phqol/OEZYlxBF\n7137Mowe6xQTKuHUB6zSTmL9uhj28PofPKoPwUpvoPpdELYOBTkh30h/qY2/pSDt\nZEHyI9xlFh/EI6FkBjlv3hDOcQKBgQDAXRo3out4LjFMUPB+5DPZVOjyjIrEUlWT\nkoyITsmc40filjpnazrb4RnUM2/1MFdsRd9qr+GKW64ecbAPKq9raXxIPGG99hU3\nHirhvz5LLdrGAUISX0soGz1oDzwpG+hMZZxK5G5c2HDMQZBCVEOsNwvkoPqB83ui\nOnjF6pgEUwKBgEm3IrxhBylUe1z2Pnwn895zooNxif8Z9lDNEI3uhHvlCMtGNHbz\nkf4EHsjJrR53nKTD9ZhdlGw0EVMQfKem6RVnWIV64CY6cGrCzV+orz0kEhwmB+VX\nFASPSSHCP94FMAQ9L7qLRm4gWZFVt3OGV+QIyw5AFCyv/nVYxUFSxkuBAoGAP4U+\n6ApTaR8Pxlyf3bbrbCO+vIEuPX/WpGFrKIOjzbu7fBYReR8Ok5b0WX8WxEdPRwCX\nsvobJv35NDJkac21mWl+0bemqvy8qrO6g0sMffTJXkMCF2ECR18fWuJVAlolzjxr\nbMubqesK7FfmFBERO6f9tGR39Dt7ouleAjTiN+MCgYEAxgj0VZnMiE+lTQH01rRv\nxnyQmOPtC+7KEa53Ojw5gUCZvM4ORjwYu5meOi/TmdYveQ+zGbrk3HgCLZfIc+tJ\n1q65V2wY/E5dtylDes/ZPT9XckcoRRdoRjz6poBR8+FP1IEX0yFHe0GPQygyr+bI\npqGfBqUYWlZ6kd/2UMZ0MjI=\n-----END PRIVATE KEY-----\n",
+  "client_email": "ponarth-bot@ponarth-orders-from-bot.iam.gserviceaccount.com",
+  "client_id": "117872539443013083288",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/ponarth-bot%40ponarth-orders-from-bot.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

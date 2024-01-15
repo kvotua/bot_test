@@ -89,6 +89,12 @@ class Bucket(Record):
 class Product(Record):
     id: int
     name: str
+    place: int
+
+    def update_data(self):
+        self.id = self['id']
+        self.name = self['name']
+        self.place = self['place']
 
 class ProductButton(CallbackData, prefix='product'):
     product_name: str
