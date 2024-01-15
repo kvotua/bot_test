@@ -4,6 +4,7 @@ from aiogram.utils.keyboard import ReplyKeyboardBuilder
 import datetime
 from aiogram.filters.callback_data import CallbackData
 
+
 class User(Record):
     user_id: int
     username: str
@@ -12,29 +13,31 @@ class User(Record):
     role: str
 
     def update_data(self):
-        self.user_id=self['user_id']
-        self.username=self['username']
-        self.firstname=self['firstname']
-        self.lastname=self['lastname']
-        self.role=self['role']
+        self.user_id = self["user_id"]
+        self.username = self["username"]
+        self.firstname = self["firstname"]
+        self.lastname = self["lastname"]
+        self.role = self["role"]
 
     def __str__(self):
-        return f'user_id:{self.user_id} username:{self.username} firstname:{self.firstname} lastname:{self.lastname} role:{self.role}'
+        return f"user_id:{self.user_id} username:{self.username} firstname:{self.firstname} lastname:{self.lastname} role:{self.role}"
+
 
 class Company(Record):
     id: int
-    ip_name: str
+    legal_entity: str
     users: list
 
     def update_data(self):
-        self.id = self['id']
-        self.ip_name = self['ip_name']
-    
+        self.id = self["id"]
+        self.legal_entity = self["legal_entity"]
+
     def set_users(self, list):
         self.users = list
 
     def __str__(self):
-        return f'id:{self.id} ip_name:{self.ip_name} users:{self.users}'
+        return f"id:{self.id} legal_entity:{self.legal_entity} users:{self.users}"
+
 
 class Point(Record):
     id: int
@@ -44,35 +47,42 @@ class Point(Record):
     name: str
 
     def update_data(self):
-        self.id = self['id']
-        self.company_id = self['company_id']
-        self.city = self['city']
-        self.address = self['address']
-        self.name = self['name']
+        self.id = self["id"]
+        self.company_id = self["company_id"]
+        self.city = self["city"]
+        self.address = self["address"]
+        self.name = self["name"]
 
     def __str__(self):
         return f'"{self.name}" по адрессу, {self.city}, {self.address}'
-    
+
+
 async def get_keyboard(list: list):
     keybord_points = ReplyKeyboardBuilder()
 
     for i in range(len(list)):
         text = list[i].__str__()
         keybord_points.button(text=text)
-    keybord_points.adjust(1,repeat=True)
-    return keybord_points.as_markup(resize_keyboard=True, one_time_keyboard=True, input_field_placeholder='Торговые точки')
+    keybord_points.adjust(1, repeat=True)
+    return keybord_points.as_markup(
+        resize_keyboard=True,
+        one_time_keyboard=True,
+        input_field_placeholder="Торговые точки",
+    )
+
 
 def find_all_indexes(input_str, substring):
     l2 = []
-    length = len(input_str) 
-    index = 0 
-    while index < length: 
-        i = input_str.find(substring, index) 
-        if i == -1: 
-            return l2 
-        l2.append(i) 
-        index = i + 1 
+    length = len(input_str)
+    index = 0
+    while index < length:
+        i = input_str.find(substring, index)
+        if i == -1:
+            return l2
+        l2.append(i)
+        index = i + 1
     return l2
+
 
 class Order(Record):
     id: int
@@ -82,9 +92,11 @@ class Order(Record):
     date_order: datetime
     summ: int
 
+
 class Bucket(Record):
     id: int
     product_id: int
+
 
 class Product(Record):
     id: int
@@ -92,9 +104,29 @@ class Product(Record):
     place: int
 
     def update_data(self):
-        self.id = self['id']
-        self.name = self['name']
-        self.place = self['place']
+        self.id = self["id"]
+        self.name = self["name"]
+        self.place = self["place"]
 
-class ProductButton(CallbackData, prefix='product'):
+
+class ProductButton(CallbackData, prefix="product"):
     product_name: str
+
+
+class Order(Record):
+    id: int
+    date_create_order: datetime
+    user_id: int
+    status: str
+    point_id: int
+    is_delivery: bool
+    date_delivery: datetime
+
+    def update_data(self):
+        self.id = self["id"]
+        self.date_create_order = self["date_create_order"]
+        self.user_id = self["user_id"]
+        self.status = self["status"]
+        self.point_id = self["point_id"]
+        self.is_delivery = self["is_delivery"]
+        self.date_delivery = self["date_delivery"]
