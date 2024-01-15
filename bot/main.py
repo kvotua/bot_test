@@ -33,7 +33,7 @@ async def start_bot(bot: Bot):
     await set_commands(bot)
     await bot.send_message(
         user_id_for_push,
-        text=f"<tg-spoiler>{socket.gethostname()}</tg-spoiler> запустил бота {datetime.datetime.now()}",
+        text=f"<tg-spoiler>{socket.gethostname()}</tg-spoiler> запустил бота {datetime.datetime.now():%Y-%m-%d %H:%M:%S}",
         reply_markup=ReplyKeyboardRemove(),
     )
 
@@ -41,7 +41,7 @@ async def start_bot(bot: Bot):
 async def stop_bot(bot: Bot):
     await bot.send_message(
         user_id_for_push,
-        text=f"<tg-spoiler>{socket.gethostname()}</tg-spoiler> отключил бота {datetime.datetime.now()}",
+        text=f"<tg-spoiler>{socket.gethostname()}</tg-spoiler> отключил бота {datetime.datetime.now():%Y-%m-%d %H:%M:%S}",
         reply_markup=ReplyKeyboardRemove(),
     )
 

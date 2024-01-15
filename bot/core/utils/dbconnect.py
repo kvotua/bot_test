@@ -46,6 +46,14 @@ class Request:
             return False
         return company["id"]
 
+    async def get_company(self, company_id):
+        query = f"SELECT * FROM company WHERE id={company_id}"
+        company = await self.connector.fetchrow(query=query, record_class=Company)
+        if company == None:
+            return False
+        company.update_data()
+        return company
+
     async def add_company(self, kind_name, user_id):
         kind_name = kind_name.upper()
         query = f"INSERT INTO company (legal_entity) VALUES ('{kind_name}')"
@@ -132,10 +140,26 @@ class Request:
         order_id = await self.connector.fetchrow(query)
         return order_id["id"]
 
+    async def get_order(self, order_id):
+        query = f"SELECT * FROM orders WHERE id={order_id}"
+        order = await self.connector.fetchrow(query=query, record_class=Order)
+        order.update_data()
+        return order
+
     async def save_bucket_by_order(self, order_id: int, bucket: dict):
         for key, value in bucket.items():
             query = f"INSERT INTO orders_products (order_id, count, product_name) VALUES ({order_id}, {value}, '{key}' )"
             await self.connector.execute(query=query)
+
+    async def get_bucket(self, order_id):
+        query = (
+            f"SELECT count, product_name FROM orders_products WHERE order_id={order_id}"
+        )
+        bucket = await self.connector.fetch(query=query)
+        new_bucket = {}
+        for item in bucket:
+            new_bucket[item["product_name"]] = item["count"]
+        return new_bucket
 
     async def save_message(
         self,

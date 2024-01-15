@@ -3,7 +3,6 @@ from aiogram.types import Message, CallbackQuery
 from aiogram.types import (
     ReplyKeyboardRemove,
     InlineKeyboardButton,
-    InlineKeyboardMarkup,
     CallbackQuery,
 )
 from aiogram.fsm.context import FSMContext
@@ -15,8 +14,9 @@ from core.utils.dbconnect import Request
 from core.keyboards.reply import *
 from core.utils.models import *
 from core.utils.formsstate import *
-
+import sheets
 import logging
+import json
 
 rt = Router()
 
@@ -414,7 +414,7 @@ async def callback_date(
             str_push = f'{str} По адресу торговой точки "{point}"\n Дата доставки: {date_order}'
         if delivery == "Самовывоз":
             is_delivery = False
-            str_push = f"{str} Вид доставки: Самовывоз\n Дата самовывоза: {date_order}"
+            str_push = f"{str} Вид доставки: Самовывоз\n Дата самовывоза: {date_order}\n Торговая точка: {point}"
         await send_call(
             callback_query,
             state,
@@ -451,10 +451,92 @@ async def choose_date(
                 message_id = mes["message_id"]
                 logging.warn(f"Ошибка при удалении сообщения {e}, {message_id}")
     data = await state.get_data()
-    order = data["order_str"]
+    order_data = data["order_str"]
     order_id = data["order_id"]
-    new_order = order.replace("Вы выбрали ", f"Заявка №{order_id}")
+    new_order = order_data.replace("Вы выбрали ", f"Заявка №{order_id}")
     await send_message(message, state, request, new_order, None, False)
+    order: Order = await request.get_order(order_id=order_id)
+    bucket = await request.get_bucket(order_id=order_id)
+    user: User = await request.get_user(order.user_id)
+    company_id = await request.user_company_exist(user.user_id)
+    company: Company = await request.get_company(company_id=company_id)
+    point: Point = await request.get_point(order.point_id)
+    ranges = ["Лист номер один!A2"]
+    result1 = (
+        sheets.service.spreadsheets()
+        .values()
+        .batchGet(
+            spreadsheetId=sheets.spreadsheetId,
+            ranges=ranges,
+            valueRenderOption="FORMATTED_VALUE",
+            dateTimeRenderOption="FORMATTED_STRING",
+        )
+        .execute()
+    )
+    try:
+        if result1["valueRanges"][0]["values"][0] != "":
+            if len(list(bucket.keys())) > 4:
+                sheets.sheet_rows = sheets.last_row
+                sheets.last_row += len(list(bucket.keys()))
+            else:
+                sheets.sheet_rows = sheets.last_row
+                sheets.last_row += 4
+    except:
+        sheets.sheet_rows = 2
+        sheets.last_row = len(list(bucket.keys()))
+
+    if order.is_delivery == True:
+        values: list = [
+            [
+                f"Заявка № {order_id}",
+                f"Заказчик:",
+                f"Адрес:",
+                f"Название магазина:",
+            ],
+            [
+                f"{order.date_create_order}",
+                f"{company.legal_entity}",
+                f"г. {point.city}, {point.address}",
+                f"{point.name}",
+            ],
+        ]
+    else:
+        values: list = [
+            [
+                f"Заявка № {order_id}",
+                f"Заказчик:",
+                f"Самовывоз:",
+                f"Название магазина:",
+            ],
+            [
+                f"{order.date_create_order}",
+                f"{company.legal_entity}",
+                f"",
+                f"{point.name}",
+            ],
+        ]
+    values.append(list(bucket.keys()))
+    values.append(list(bucket.values()))
+    range = f"Лист номер один!A{str(sheets.sheet_rows)}"
+    result2 = (
+        sheets.service.spreadsheets()
+        .values()
+        .batchUpdate(
+            spreadsheetId=sheets.spreadsheetId,
+            body={
+                "valueInputOption": "USER_ENTERED",
+                "data": [
+                    {
+                        "range": range,
+                        "majorDimension": "COLUMNS",
+                        "values": values,
+                    }
+                ],
+            },
+        )
+        .execute()
+    )
+    await state.clear()
 
 
 #################### order ####################
