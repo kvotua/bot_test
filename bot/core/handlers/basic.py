@@ -50,12 +50,34 @@ async def send_call(
     )
 
 
+@rt.message(Command("sheets"))
+async def get_sheets_info(
+    message: Message,
+    request: Request,
+    state: FSMContext,
+):
+    await send_message(
+        message=message,
+        state=state,
+        request=request,
+        answer=f"{sheets.spreadsheetId} , {sheets.sheet_rows} , {sheets.last_row} , {sheets.sheet_id} , {sheets.sheet_count}",
+        reply=ReplyKeyboardRemove(),
+    )
+
+
 @rt.message(Command("cancel"))
 async def get_cancel(
     message: Message,
+    request: Request,
     state: FSMContext,
 ):
-    await message.answer("Cancelled.", reply_markup=ReplyKeyboardRemove())
+    await send_message(
+        message=message,
+        state=state,
+        request=request,
+        answer="Cancelled.",
+        reply=ReplyKeyboardRemove(),
+    )
     current_state = await state.get_state()
     if current_state is None:
         return
@@ -483,7 +505,7 @@ async def choose_date(
                 sheets.last_row += 4
     except:
         sheets.sheet_rows = 2
-        sheets.last_row = len(list(bucket.keys()))
+        sheets.last_row = len(list(bucket.keys())) + 1
 
     if order.is_delivery == True:
         values: list = [
