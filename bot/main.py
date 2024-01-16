@@ -15,6 +15,7 @@ from core.middlewares.countermiddleware import CounterMiddleware
 from core.middlewares.dbmiddleware import DbSession
 from core.utils.commands import set_commands
 from core.utils.formsstate import *
+import sheets
 from env import db_host, bot_token, user_id_for_push, db_name, db_user, db_pass
 
 
@@ -36,6 +37,7 @@ async def start_bot(bot: Bot):
         text=f"<tg-spoiler>{socket.gethostname()}</tg-spoiler> запустил бота {datetime.datetime.now():%Y-%m-%d %H:%M:%S}",
         reply_markup=ReplyKeyboardRemove(),
     )
+    sheets.read_data()
 
 
 async def stop_bot(bot: Bot):
@@ -44,6 +46,7 @@ async def stop_bot(bot: Bot):
         text=f"<tg-spoiler>{socket.gethostname()}</tg-spoiler> отключил бота {datetime.datetime.now():%Y-%m-%d %H:%M:%S}",
         reply_markup=ReplyKeyboardRemove(),
     )
+    sheets.write_data()
 
 
 async def start():
