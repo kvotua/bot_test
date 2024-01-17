@@ -14,11 +14,13 @@ from core.utils.dbconnect import Request
 from core.keyboards.reply import *
 from core.utils.models import *
 from core.utils.formsstate import *
-import sheets
+from sheets import Sheet
 import logging
 import json
 
 rt = Router()
+
+sheet = Sheet()
 
 
 async def send_message(
@@ -56,11 +58,13 @@ async def get_sheets_info(
     request: Request,
     state: FSMContext,
 ):
+    sheet.create_now_week()
+    sheet.create_week_by_day(date=datetime.datetime(2024, 2, 14))
     await send_message(
         message=message,
         state=state,
         request=request,
-        answer=f"{sheets.spreadsheetId} , {sheets.sheet_rows} , {sheets.last_row} , {sheets.sheet_id} , {sheets.sheet_count}",
+        answer=f"good",
         reply=ReplyKeyboardRemove(),
     )
 
@@ -483,81 +487,11 @@ async def choose_date(
     company_id = await request.user_company_exist(user.user_id)
     company: Company = await request.get_company(company_id=company_id)
     point: Point = await request.get_point(order.point_id)
-    ranges = ["Лист номер один!A2"]
-    result1 = (
-        sheets.service.spreadsheets()
-        .values()
-        .batchGet(
-            spreadsheetId=sheets.spreadsheetId,
-            ranges=ranges,
-            valueRenderOption="FORMATTED_VALUE",
-            dateTimeRenderOption="FORMATTED_STRING",
-        )
-        .execute()
-    )
-    try:
-        if result1["valueRanges"][0]["values"][0] != "":
-            if len(list(bucket.keys())) > 4:
-                sheets.sheet_rows = sheets.last_row
-                sheets.last_row += len(list(bucket.keys()))
-            else:
-                sheets.sheet_rows = sheets.last_row
-                sheets.last_row += 4
-    except:
-        sheets.sheet_rows = 2
-        sheets.last_row = len(list(bucket.keys())) + 1
 
-    if order.is_delivery == True:
-        values: list = [
-            [
-                f"Заявка № {order_id}",
-                f"Заказчик:",
-                f"Адрес:",
-                f"Название магазина:",
-            ],
-            [
-                f"{order.date_create_order}",
-                f"{company.legal_entity}",
-                f"г. {point.city}, {point.address}",
-                f"{point.name}",
-            ],
-        ]
-    else:
-        values: list = [
-            [
-                f"Заявка № {order_id}",
-                f"Заказчик:",
-                f"Самовывоз:",
-                f"Название магазина:",
-            ],
-            [
-                f"{order.date_create_order}",
-                f"{company.legal_entity}",
-                f"",
-                f"{point.name}",
-            ],
-        ]
-    values.append(list(bucket.keys()))
-    values.append(list(bucket.values()))
-    range = f"Лист номер один!A{str(sheets.sheet_rows)}"
-    result2 = (
-        sheets.service.spreadsheets()
-        .values()
-        .batchUpdate(
-            spreadsheetId=sheets.spreadsheetId,
-            body={
-                "valueInputOption": "USER_ENTERED",
-                "data": [
-                    {
-                        "range": range,
-                        "majorDimension": "COLUMNS",
-                        "values": values,
-                    }
-                ],
-            },
-        )
-        .execute()
-    )
+    date: str = order.date_delivery.strftime("%d-%m-%Y")
+
+    id = sheet.create_week_by_day(datetime.datetime.strptime(date, "%d-%m-%Y"))
+    await send_message(message, state, request, date, None)
     await state.clear()
 
 
