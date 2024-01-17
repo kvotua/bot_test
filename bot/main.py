@@ -37,7 +37,6 @@ async def start_bot(bot: Bot):
         text=f"<tg-spoiler>{socket.gethostname()}</tg-spoiler> запустил бота {datetime.datetime.now():%Y-%m-%d %H:%M:%S}",
         reply_markup=ReplyKeyboardRemove(),
     )
-    sheets.read_data()
 
 
 async def stop_bot(bot: Bot):
@@ -46,7 +45,6 @@ async def stop_bot(bot: Bot):
         text=f"<tg-spoiler>{socket.gethostname()}</tg-spoiler> отключил бота {datetime.datetime.now():%Y-%m-%d %H:%M:%S}",
         reply_markup=ReplyKeyboardRemove(),
     )
-    sheets.write_data()
 
 
 async def start():
