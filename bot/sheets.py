@@ -3,6 +3,8 @@ import googleapiclient.discovery
 from oauth2client.service_account import ServiceAccountCredentials
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
+from core.utils.dbconnect import Request
+import asyncpg
 import logging
 
 
@@ -52,12 +54,96 @@ class Sheet:
         6: "воскресенье",
     }
 
+    def get_name_sheet_by_id(self, sheet_id: int):
+        spreadsheet = (
+            self.service.spreadsheets().get(spreadsheetId=self.spreadsheetId).execute()
+        )
+        sheetList = spreadsheet.get("sheets")
+        for sheet in sheetList:
+            id = sheet["properties"]["sheetId"]
+            if id == sheet_id:
+                return sheet["properties"]["title"]
+
+    def save_order(self, order_info: list, order_data: list, date, sheet_id):
+        data_write = []
+        for i in order_info:
+            data_write.append(i)
+        for i in order_data:
+            data_write.append(i)
+
+    def check_cell_empty(self, ranges):
+        results = (
+            self.service.spreadsheets()
+            .values()
+            .batchGet(
+                spreadsheetId=self.spreadsheetId,
+                ranges=ranges,
+                valueRenderOption="FORMATTED_VALUE",
+                dateTimeRenderOption="FORMATTED_STRING",
+            )
+            .execute()
+        )
+        sheet_values_res: list = []
+        try:
+            sheet_values_res = results["valueRanges"][0]["values"]
+            logging.info(sheet_values_res)
+        except:
+            return
+        len_colmn = len(sheet_values_res)
+        ranges_res_all = ranges.split("!")[1].split(":")
+        ranges_res_0 = ""
+        ranges_res_1 = ""
+        for i in range(len(ranges_res_all[0])):
+            if i != 0:
+                ranges_res_0 += str(ranges_res_all[0][i])
+        for i in range(len(ranges_res_all[1])):
+            if i != 0:
+                ranges_res_1 += str(ranges_res_all[1][i])
+        logging.info(f"{ranges_res_all} {ranges_res_0} {ranges_res_1}")
+
+        if (int(ranges_res_1) - int(ranges_res_0) + 1) == len_colmn:
+            return
+
+        cell1 = 0
+        cell2 = 0
+        for colm in range(len_colmn):
+            cell1 = colm
+            if len(sheet_values_res[colm]) != 0:
+                if sheet_values_res[colm][0] == "":
+                    logging.info(
+                        f"sheet_values_res[colm][0] = {sheet_values_res[colm][0]}, sheet_values_res[colm][1] = {sheet_values_res[colm][1]}"
+                    )
+        ranges_res = ranges.split("!")[1].split(":")[0]
+        logging.info(ranges_res)
+        ranges_res_int: int = int(ranges_res_0) + cell1 + 1
+        return f"{ranges_res[0]}{ranges_res_int}"
+
     def create_now_week(self):
         date = datetime.now()
-        self.write_week(self.get_week_by_day(date))
+        week = self.get_week_by_day(date)
+        spreadsheet = (
+            self.service.spreadsheets().get(spreadsheetId=self.spreadsheetId).execute()
+        )
+        sheetList = spreadsheet.get("sheets")
+        for sheet in sheetList:
+            sheet_name = sheet["properties"]["title"]
+            if sheet_name == week[0]:
+                logging.info(f"{sheet_name} - {week[0]} - now check")
+                return sheet["properties"]["sheetId"]
+        id = self.write_week(week)
+        return id
 
     def create_week_by_day(self, date):
         week = self.get_week_by_day(date)
+        spreadsheet = (
+            self.service.spreadsheets().get(spreadsheetId=self.spreadsheetId).execute()
+        )
+        sheetList = spreadsheet.get("sheets")
+        for sheet in sheetList:
+            sheet_name = sheet["properties"]["title"]
+            if sheet_name == week[0]:
+                logging.info(f"{sheet_name} - {week[0]}")
+                return
         id = self.write_week(week)
         return id
 
@@ -135,6 +221,7 @@ class Sheet:
             .execute()
         )
         logging.info(result)
+
         return sheet["sheetId"]
 
     def create_sheet(self, start_date: datetime):
@@ -161,6 +248,7 @@ class Sheet:
             )
             .execute()
         )
+
         return new_sheet["replies"][0]["addSheet"]["properties"]
 
     def new_weeks(self, count_week: int):
