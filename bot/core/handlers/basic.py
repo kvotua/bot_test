@@ -58,13 +58,15 @@ async def get_sheets_info(
     request: Request,
     state: FSMContext,
 ):
-    sheet.create_now_week()
-    sheet.create_week_by_day(date=datetime.datetime(2024, 2, 14))
+    id = sheet.create_now_week()
+    name = sheet.get_name_sheet_by_id(id)
+    ranges = f"{name}!C2:D10"
+    id_cell = sheet.check_cell_empty(ranges)
     await send_message(
         message=message,
         state=state,
         request=request,
-        answer=f"good",
+        answer=f"good {id_cell}",
         reply=ReplyKeyboardRemove(),
     )
 
@@ -489,8 +491,17 @@ async def choose_date(
     point: Point = await request.get_point(order.point_id)
 
     date: str = order.date_delivery.strftime("%d-%m-%Y")
-
     id = sheet.create_week_by_day(datetime.datetime.strptime(date, "%d-%m-%Y"))
+    order_info = []
+    order_info.append([f"Заявка№{order.id}:", f"{company.legal_entity}"])
+    if order.is_delivery == True:
+        order_info.append([f"Вид доставки:", f"До адреса торговой точки"])
+        order_info.append([f"Адрес:", f"{point.name}"])
+
+    else:
+        order_info.append([f"Вид доставки:", f"Самовывоз"])
+    order_data = bucket
+
     await send_message(message, state, request, date, None)
     await state.clear()
 
