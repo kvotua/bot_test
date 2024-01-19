@@ -60,8 +60,7 @@ async def get_sheets_info(
 ):
     id = sheet.create_now_week()
     name = sheet.get_name_sheet_by_id(id)
-    ranges = f"{name}!C2:D10"
-    id_cell = sheet.check_cell_empty(ranges)
+    id_cell = sheet.what_is_position_for_write_order(datetime.datetime.now())
     await send_message(
         message=message,
         state=state,
@@ -501,6 +500,8 @@ async def choose_date(
     else:
         order_info.append([f"Вид доставки:", f"Самовывоз"])
     order_data = bucket
+    date_no_date = datetime.datetime.strptime(date, "%d-%m-%Y")
+    sheet.save_order(order_info=order_info, order_data=order_data, date=date_no_date)
 
     await send_message(message, state, request, date, None)
     await state.clear()
