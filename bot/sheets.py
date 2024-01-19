@@ -35,9 +35,8 @@ class Sheet:
             .create(
                 fileId=self.spreadsheetId,
                 body={
-                    "type": "user",
+                    "type": "anyone",
                     "role": "writer",
-                    "emailAddress": "solomennicova555@gmail.com",
                 },
                 fields="id",
             )
@@ -64,12 +63,84 @@ class Sheet:
             if id == sheet_id:
                 return sheet["properties"]["title"]
 
-    def save_order(self, order_info: list, order_data: list, date, sheet_id):
+    def save_order(self, order_info: list, order_data: dict, date):
         data_write = []
         for i in order_info:
             data_write.append(i)
-        for i in order_data:
-            data_write.append(i)
+        for key, value in order_data.items():
+            data_write.append([key, value])
+        logging.info(data_write)
+        place = self.what_is_position_for_write_order(date)
+        column_start = place[3]
+        ranges = f"{place[2]}!{place[0]}{column_start}:{place[1]}"
+        result = (
+            self.service.spreadsheets()
+            .values()
+            .batchUpdate(
+                spreadsheetId=self.spreadsheetId,
+                body={
+                    "valueInputOption": "USER_ENTERED",
+                    "data": [
+                        {
+                            "range": ranges,
+                            "majorDimension": "ROWS",
+                            "values": data_write,
+                        }
+                    ],
+                },
+            )
+            .execute()
+        )
+
+    sheet_column = {
+        0: "A",
+        1: "B",
+        2: "C",
+        3: "D",
+        4: "E",
+        5: "F",
+        6: "G",
+        7: "H",
+        8: "I",
+        9: "J",
+        10: "K",
+        11: "L",
+        12: "M",
+        13: "N",
+    }
+
+    def what_is_position_for_write_order(self, date):
+        id = self.create_week_by_day(date=date)
+        week = self.get_week_by_day(date)
+        place = 0
+        for i in range(len(week)):
+            if week[i] == date.strftime("%d-%m-%Y"):
+                place = i
+        place = place * 2
+        logging.info(f"place: {place}")
+        logging.info(f"sheet name: {self.get_name_sheet_by_id(id)}")
+        first_column = f"{self.sheet_column[place]}"
+        second_column = f"{self.sheet_column[place+1]}"
+        first = 2
+        second = 7
+        ranges = f"{self.get_name_sheet_by_id(id)}!{first_column}{first}:{second_column}{second}"
+        logging.info(f"start range {ranges}")
+        cell_start = self.check_cell_empty(ranges=ranges)
+        while cell_start == None:
+            first += 5
+            second += 5
+            ranges = f"{self.get_name_sheet_by_id(id)}!{first_column}{first}:{second_column}{second}"
+            logging.info(ranges)
+            cell_start = self.check_cell_empty(ranges=ranges)
+
+        column = [
+            first_column,
+            second_column,
+            self.get_name_sheet_by_id(id),
+            cell_start,
+        ]
+        logging.info(f"column info : {column}")
+        return column
 
     def check_cell_empty(self, ranges):
         results = (
@@ -84,13 +155,22 @@ class Sheet:
             .execute()
         )
         sheet_values_res: list = []
+        try_range = ranges.split("!")[1].split(":")[0]
+        try_range_0 = ""
+        # A1:B1
+        ranges_res_all = ranges.split("!")[1].split(":")
+
+        for i in range(len(try_range)):
+            if i != 0:
+                # 1 or 12 or 133
+                try_range_0 += str(ranges_res_all[0][i])
         try:
             sheet_values_res = results["valueRanges"][0]["values"]
             logging.info(sheet_values_res)
         except:
-            return
+            logging.info(try_range_0)
+            return try_range_0
         len_colmn = len(sheet_values_res)
-        ranges_res_all = ranges.split("!")[1].split(":")
         ranges_res_0 = ""
         ranges_res_1 = ""
         for i in range(len(ranges_res_all[0])):
@@ -116,7 +196,7 @@ class Sheet:
         ranges_res = ranges.split("!")[1].split(":")[0]
         logging.info(ranges_res)
         ranges_res_int: int = int(ranges_res_0) + cell1 + 1
-        return f"{ranges_res[0]}{ranges_res_int}"
+        return f"{ranges_res_int}"
 
     def create_now_week(self):
         date = datetime.now()
@@ -143,7 +223,7 @@ class Sheet:
             sheet_name = sheet["properties"]["title"]
             if sheet_name == week[0]:
                 logging.info(f"{sheet_name} - {week[0]}")
-                return
+                return sheet["properties"]["sheetId"]
         id = self.write_week(week)
         return id
 
