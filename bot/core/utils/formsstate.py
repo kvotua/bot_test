@@ -1,5 +1,6 @@
 from aiogram.fsm.state import StatesGroup, State
 
+
 class OrderForm(StatesGroup):
     start = State()
 
@@ -18,11 +19,16 @@ class OrderForm(StatesGroup):
     edit = State()
     save_order = State()
 
+
 class RegLegalEntityForm(StatesGroup):
     start = State()
     kind = State()
     name = State()
 
+
 class ProductForm(StatesGroup):
     start = State()
+    choose_place = State()
+    edit = State()
+    get_orders = State()
     save = State()

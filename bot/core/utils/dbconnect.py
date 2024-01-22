@@ -108,11 +108,17 @@ class Request:
         query = f"INSERT INTO point_company (name, address, city, company_id, date_reg) VALUES ('{name}', '{address}', '{city}', {company_id}, '{datetime.datetime.now():%Y-%m-%d %H:%M:%S}')"
         await self.connector.execute(query=query)
 
-    async def save_poduct(self, names):
+    async def save_poduct(self, names, place):
         end_s = names[-1]
         if end_s == " ":
             names = names[:-1]
-        query = f"INSERT INTO products (name) VALUES ('{names}');"
+        query = (
+            f"INSERT INTO products (name, place) VALUES ('{names}', ({int(place)}));"
+        )
+        await self.connector.execute(query=query)
+
+    async def change_place(self, product, place):
+        query = f"UPDATE products SET place={int(place)} WHERE name='{product}'"
         await self.connector.execute(query=query)
 
     async def exist_name_product(self, name):

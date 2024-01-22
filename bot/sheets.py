@@ -43,6 +43,9 @@ class Sheet:
             .execute()
         )
 
+    def link(self):
+        return f"https://docs.google.com/spreadsheets/d/{self.spreadsheetId}"
+
     week = {
         0: "понедельник",
         1: "вторник",
@@ -100,7 +103,8 @@ class Sheet:
         )
 
         width_cell_main_line = 10 * (len(data_write[0][1])) / 2
-
+        if width_cell_main_line < 90:
+            width_cell_main_line = 100
         result2 = (
             self.service.spreadsheets()
             .batchUpdate(
