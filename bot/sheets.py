@@ -72,7 +72,9 @@ class Sheet:
         logging.info(data_write)
         place = self.what_is_position_for_write_order(date)
         column_start = place[3]
-        ranges = f"{place[2]}!{place[0]}{column_start}:{place[1]}"
+        ranges = (
+            f"{self.get_name_sheet_by_id(place[2])}!{place[0]}{column_start}:{place[1]}"
+        )
         result = (
             self.service.spreadsheets()
             .values()
@@ -87,6 +89,145 @@ class Sheet:
                             "values": data_write,
                         }
                     ],
+                },
+            )
+            .execute()
+        )
+        end_cell = self.what_is_position_for_write_order(date)
+
+        logging.info(
+            f"range {ranges} in new kind {place[2]}, {place[4]}{column_start}:{place[5]}{end_cell[3]}"
+        )
+
+        width_cell_main_line = 10 * (len(data_write[0][1])) / 2
+
+        result2 = (
+            self.service.spreadsheets()
+            .batchUpdate(
+                spreadsheetId=self.spreadsheetId,
+                body={
+                    "requests": [
+                        {
+                            "updateDimensionProperties": {
+                                "range": {
+                                    "sheetId": place[2],
+                                    "dimension": "COLUMNS",
+                                    "startIndex": place[5],
+                                    "endIndex": (place[5] + 1),
+                                },
+                                "properties": {"pixelSize": width_cell_main_line},
+                                "fields": "pixelSize",
+                            }
+                        },
+                    ]
+                },
+            )
+            .execute()
+        )
+        logging.info(f"размер в пикселях: {width_cell_main_line}")
+        result3 = (
+            self.service.spreadsheets()
+            .batchUpdate(
+                spreadsheetId=self.spreadsheetId,
+                body={
+                    "requests": [
+                        {
+                            "updateBorders": {
+                                "range": {
+                                    "sheetId": place[2],
+                                    "startRowIndex": (int(column_start) - 1),
+                                    "endRowIndex": (int(end_cell[3]) - 1),
+                                    "startColumnIndex": place[4],
+                                    "endColumnIndex": (place[5] + 1),
+                                },
+                                "bottom": {
+                                    "style": "SOLID",
+                                    "width": 1,
+                                    "color": {
+                                        "red": 0,
+                                        "green": 0,
+                                        "blue": 0,
+                                        "alpha": 1,
+                                    },
+                                },
+                                "top": {
+                                    "style": "SOLID",
+                                    "width": 1,
+                                    "color": {
+                                        "red": 0,
+                                        "green": 0,
+                                        "blue": 0,
+                                        "alpha": 1,
+                                    },
+                                },
+                                "left": {
+                                    "style": "SOLID",
+                                    "width": 1,
+                                    "color": {
+                                        "red": 0,
+                                        "green": 0,
+                                        "blue": 0,
+                                        "alpha": 1,
+                                    },
+                                },
+                                "right": {
+                                    "style": "SOLID",
+                                    "width": 1,
+                                    "color": {
+                                        "red": 0,
+                                        "green": 0,
+                                        "blue": 0,
+                                        "alpha": 1,
+                                    },
+                                },
+                                "innerHorizontal": {
+                                    "style": "DASHED",
+                                    "width": 1,
+                                    "color": {
+                                        "red": 0,
+                                        "green": 0,
+                                        "blue": 0,
+                                        "alpha": 1,
+                                    },
+                                },
+                                "innerVertical": {
+                                    "style": "DASHED",
+                                    "width": 1,
+                                    "color": {
+                                        "red": 0,
+                                        "green": 0,
+                                        "blue": 0,
+                                        "alpha": 1,
+                                    },
+                                },
+                            }
+                        },
+                        {
+                            "repeatCell": {
+                                "cell": {
+                                    "userEnteredFormat": {
+                                        "horizontalAlignment": "CENTER",
+                                        "backgroundColor": {
+                                            "red": 0.8,
+                                            "green": 1,
+                                            "blue": 0.8,
+                                            "alpha": 1,
+                                        },
+                                        "textFormat": {"bold": True, "fontSize": 10},
+                                        "wrapStrategy": "WRAP",
+                                    }
+                                },
+                                "range": {
+                                    "sheetId": place[2],
+                                    "startRowIndex": (int(column_start) - 1),
+                                    "endRowIndex": int(column_start),
+                                    "startColumnIndex": place[4],
+                                    "endColumnIndex": (place[5] + 1),
+                                },
+                                "fields": "userEnteredFormat",
+                            }
+                        },
+                    ]
                 },
             )
             .execute()
@@ -136,8 +277,10 @@ class Sheet:
         column = [
             first_column,
             second_column,
-            self.get_name_sheet_by_id(id),
+            id,
             cell_start,
+            place,
+            (place + 1),
         ]
         logging.info(f"column info : {column}")
         return column
