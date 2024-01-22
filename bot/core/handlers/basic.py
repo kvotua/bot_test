@@ -65,7 +65,7 @@ async def get_sheets_info(
         message=message,
         state=state,
         request=request,
-        answer=f"good {id_cell}",
+        answer=f"good",
         reply=ReplyKeyboardRemove(),
     )
 
@@ -112,7 +112,7 @@ async def get_start(
 
     if user.role == "admin":
         str = f"Добро пожаловать в админскую панель, {message.from_user.first_name}!"
-        await send_message(message, state, request, str, None)
+        await send_message(message, state, request, str, ReplyKeyboardRemove())
         await state.set_state(ProductForm.start)
         await send_message(
             message, state, request, f"Выберете дальнейшее действие.", reply_admin
@@ -161,7 +161,11 @@ async def add_legel_entity(
 ):
     await state.set_state(RegLegalEntityForm.kind)
     await send_message(
-        message, state, request, f"Введите вид юр. лица (ИП, ООО, ...)", None
+        message,
+        state,
+        request,
+        f"Введите вид юр. лица (ИП, ООО, ...)",
+        ReplyKeyboardRemove(),
     )
 
 
@@ -177,7 +181,7 @@ async def add_legel_entity(
         state,
         request,
         f"Введите название Вашего юр. лица (Иван Иванович Иванов, Виктория, ...)",
-        None,
+        ReplyKeyboardRemove(),
     )
     await state.set_state(RegLegalEntityForm.name)
 
@@ -189,7 +193,7 @@ async def add_legel_entity(
     state: FSMContext,
 ):
     await state.update_data(name=message.text)
-    await send_message(message, state, request, f"Проверка ...", None)
+    await send_message(message, state, request, f"Проверка ...", ReplyKeyboardRemove())
     data = await state.get_data()
     str_temp: str = data["kind"] + " " + data["name"]
 
@@ -199,7 +203,7 @@ async def add_legel_entity(
         state,
         request,
         f"Ваше юр. лицо {str_temp} успешно зарегистрировано!",
-        None,
+        ReplyKeyboardRemove(),
     )
     await state.clear()
     await state.set_state(OrderForm.add_point)
@@ -237,7 +241,11 @@ async def point(
     if message.text == "Зарегистрировать торговую точку":
         await state.set_state(OrderForm.city)
         await send_message(
-            message, state, request, f"Введите город в котором находится магазин", None
+            message,
+            state,
+            request,
+            f"Введите город в котором находится магазин",
+            ReplyKeyboardRemove(),
         )
 
 
@@ -253,7 +261,11 @@ async def choose_point(
 ):
     point = message.text.split('"')[1]
     await send_message(
-        message, state, request, f"Выбранная торговая точка: {point}", None
+        message,
+        state,
+        request,
+        f"Выбранная торговая точка: {point}",
+        ReplyKeyboardRemove(),
     )
     await state.update_data(point=point)
     await state.update_data(products_buf={})
@@ -315,7 +327,11 @@ async def process_callback_button1(
     products_dict = data["products_buf"]
     products_dict[product] = 0
     await send_call(
-        call, state, request, f'Сколько литров "{product}" вы хотите заказать?', None
+        call,
+        state,
+        request,
+        f'Сколько литров "{product}" вы хотите заказать?',
+        ReplyKeyboardRemove(),
     )
 
 
@@ -390,11 +406,15 @@ async def check(
         )
     if answer == "Отредактировать":
         await state.set_state(OrderForm.edit)
-        await send_message(message, state, request, f"Надо редактировать", None)
+        await send_message(
+            message, state, request, f"Надо редактировать", ReplyKeyboardRemove()
+        )
         await message.answer(f"Надо редактировать")
     if answer == "Начать заново":
         await state.set_state(OrderForm.choose_products)
-        await send_message(message, state, request, f"Начать заново", None)
+        await send_message(
+            message, state, request, f"Начать заново", ReplyKeyboardRemove()
+        )
 
 
 @rt.message(OrderForm.choose_date)
@@ -466,7 +486,7 @@ async def choose_date(
     request: Request,
     state: FSMContext,
 ):
-    await send_message(message, state, request, f"Сохранение...", None)
+    await send_message(message, state, request, f"Сохранение...", ReplyKeyboardRemove())
     messages = await request.get_messages_by_user(message.from_user.id)
     for mes in messages:
         if mes["delete"] == True:
@@ -476,12 +496,12 @@ async def choose_date(
                 await request.delete_message(mes)
             except Exception as e:
                 message_id = mes["message_id"]
-                logging.warn(f"Ошибка при удалении сообщения {e}, {message_id}")
+                # logging.warn(f"Ошибка при удалении сообщения {e}, {message_id}")
     data = await state.get_data()
     order_data = data["order_str"]
     order_id = data["order_id"]
     new_order = order_data.replace("Вы выбрали ", f"Заявка №{order_id}")
-    await send_message(message, state, request, new_order, None, False)
+    await send_message(message, state, request, new_order, ReplyKeyboardRemove(), False)
     order: Order = await request.get_order(order_id=order_id)
     bucket = await request.get_bucket(order_id=order_id)
     user: User = await request.get_user(order.user_id)
@@ -503,7 +523,7 @@ async def choose_date(
     date_no_date = datetime.datetime.strptime(date, "%d-%m-%Y")
     sheet.save_order(order_info=order_info, order_data=order_data, date=date_no_date)
 
-    await send_message(message, state, request, date, None)
+    await send_message(message, state, request, date, ReplyKeyboardRemove())
     await state.clear()
 
 
@@ -518,7 +538,11 @@ async def add_point(
 ):
     await state.set_state(OrderForm.city)
     await send_message(
-        message, state, request, f"Введите город в котором находится магазин", None
+        message,
+        state,
+        request,
+        f"Введите город в котором находится магазин",
+        ReplyKeyboardRemove(),
     )
 
 
@@ -531,7 +555,11 @@ async def city_point(
     await state.set_state(OrderForm.address)
     await state.update_data(city=message.text)
     await send_message(
-        message, state, request, f"Введите адрес в котором находится магазин", None
+        message,
+        state,
+        request,
+        f"Введите адрес в котором находится магазин",
+        ReplyKeyboardRemove(),
     )
 
 
@@ -544,7 +572,11 @@ async def address_point(
     await state.set_state(OrderForm.name)
     await state.update_data(address=message.text)
     await send_message(
-        message, state, request, f"Введите название магазина без кавычек", None
+        message,
+        state,
+        request,
+        f"Введите название магазина без кавычек",
+        ReplyKeyboardRemove(),
     )
 
 
@@ -562,7 +594,7 @@ async def name_point(
         state,
         request,
         f"Проверьте информацию о торговой точке, все верно?",
-        None,
+        ReplyKeyboardRemove(),
     )
     await send_message(
         message,
@@ -590,7 +622,7 @@ async def save_point(
         state,
         request,
         f"Чтобы сделать заказ заводу Ponarth, нужно выбрать или добавить магазин",
-        None,
+        ReplyKeyboardRemove(),
     )
     await send_message(
         message,
@@ -610,7 +642,11 @@ async def renew_point(
     await state.clear()
     await state.set_state(OrderForm.city)
     await send_message(
-        message, state, request, f"Введите город в котором находится магазин", None
+        message,
+        state,
+        request,
+        f"Введите город в котором находится магазин",
+        ReplyKeyboardRemove(),
     )
 
 
@@ -633,12 +669,14 @@ async def add_product(
             state,
             request,
             f"Введите название продукта или список продуктов через Shift+Enter, которое хотите добавить в бота Ponarth.",
-            None,
+            ReplyKeyboardRemove(),
         )
     elif mes == "Просмотреть товары":
         products = await request.get_products()
         for i in range(len(products)):
-            await send_message(message, state, request, f"- {products[i].name}", None)
+            await send_message(
+                message, state, request, f"- {products[i].name}", ReplyKeyboardRemove()
+            )
             await send_message(message, state, request, f"Конец списка", reply_admin)
     elif mes == "Просмотреть заказы":
         await send_message(message, state, request, f"Заказов нет", reply_admin)
@@ -660,16 +698,22 @@ async def save_product(
                 state,
                 request,
                 f'Позиция с именем "{names[i]}" уже существует',
-                None,
+                ReplyKeyboardRemove(),
             )
         else:
             await request.save_poduct(names[i])
             await send_message(
-                message, state, request, f"{names[i]} - Успешно добавлено", None
+                message,
+                state,
+                request,
+                f"{names[i]} - Успешно добавлено",
+                ReplyKeyboardRemove(),
             )
             count += 1
     await state.clear()
-    await send_message(message, state, request, f"Позиций добавлено: {count}", None)
+    await send_message(
+        message, state, request, f"Позиций добавлено: {count}", ReplyKeyboardRemove()
+    )
     await state.set_state(ProductForm.start)
     await send_message(
         message, state, request, f"Выберете дальнейшее действие.", reply_admin
