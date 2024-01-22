@@ -52,24 +52,6 @@ async def send_call(
     )
 
 
-@rt.message(Command("sheets"))
-async def get_sheets_info(
-    message: Message,
-    request: Request,
-    state: FSMContext,
-):
-    id = sheet.create_now_week()
-    name = sheet.get_name_sheet_by_id(id)
-    id_cell = sheet.what_is_position_for_write_order(datetime.datetime.now())
-    await send_message(
-        message=message,
-        state=state,
-        request=request,
-        answer=f"good",
-        reply=ReplyKeyboardRemove(),
-    )
-
-
 @rt.message(Command("cancel"))
 async def get_cancel(
     message: Message,
@@ -94,60 +76,71 @@ async def get_cancel(
 @rt.message(CommandStart())
 async def get_start(
     message: Message,
+    bot: Bot,
     request: Request,
     state: FSMContext,
 ):
-    user_is = await request.user_exist(message.from_user.id)
+    user_channel_status = await bot.get_chat_member(
+        chat_id="ID канала", user_id=message.from_user.id
+    )
+    if user_channel_status["status"] != "left":
+        user_is = await request.user_exist(message.from_user.id)
 
-    if user_is == False and isinstance(user_is, bool):
-        await request.add_user(
-            message.from_user.id,
-            message.from_user.username,
-            message.from_user.first_name,
-            message.from_user.last_name,
-            "client",
-        )
-
-    user: User = await request.get_user(message.from_user.id)
-
-    if user.role == "admin":
-        str = f"Добро пожаловать в админскую панель, {message.from_user.first_name}!"
-        await send_message(message, state, request, str, ReplyKeyboardRemove())
-        await state.set_state(ProductForm.start)
-        await send_message(
-            message, state, request, f"Выберете дальнейшее действие.", reply_admin
-        )
-    else:
-        company = await request.user_company_exist(message.from_user.id)
-        if company == False and isinstance(company, bool):
-            await send_message(
-                message,
-                state,
-                request,
-                f"Чтобы сделать заказ заводу Ponarth, нужно зарегистрировать свое юр. лицо",
-                reply_reg,
+        if user_is == False and isinstance(user_is, bool):
+            await request.add_user(
+                message.from_user.id,
+                message.from_user.username,
+                message.from_user.first_name,
+                message.from_user.last_name,
+                "client",
             )
-            await state.set_state(RegLegalEntityForm.start)
+
+        user: User = await request.get_user(message.from_user.id)
+
+        if user.role == "admin":
+            str = (
+                f"Добро пожаловать в админскую панель, {message.from_user.first_name}!"
+            )
+            await send_message(message, state, request, str, ReplyKeyboardRemove())
+            await state.set_state(ProductForm.start)
+            await send_message(
+                message, state, request, f"Выберете дальнейшее действие.", reply_admin
+            )
         else:
-            points = await request.get_all_point_company(message.from_user.id)
-            if points == None:
-                await state.set_state(OrderForm.add_point)
+            company = await request.user_company_exist(message.from_user.id)
+            if company == False and isinstance(company, bool):
                 await send_message(
                     message,
                     state,
                     request,
-                    f"Чтобы сделать заказ заводу Ponarth, нужно добавить магазин",
-                    reply_reg_point_v1,
+                    f"Чтобы сделать заказ заводу Ponarth, нужно зарегистрировать свое юр. лицо",
+                    reply_reg,
                 )
+                await state.set_state(RegLegalEntityForm.start)
             else:
-                await state.set_state(OrderForm.start)
-                await send_message(
-                    message,
-                    state,
-                    request,
-                    f"Чтобы сделать заказ заводу Ponarth, нужно выбрать или добавить магазин",
-                    reply_reg_point_v2,
-                )
+                points = await request.get_all_point_company(message.from_user.id)
+                if points == None:
+                    await state.set_state(OrderForm.add_point)
+                    await send_message(
+                        message,
+                        state,
+                        request,
+                        f"Чтобы сделать заказ заводу Ponarth, нужно добавить магазин",
+                        reply_reg_point_v1,
+                    )
+                else:
+                    await state.set_state(OrderForm.start)
+                    await send_message(
+                        message,
+                        state,
+                        request,
+                        f"Чтобы сделать заказ заводу Ponarth, нужно выбрать или добавить магазин",
+                        reply_reg_point_v2,
+                    )
+    else:
+        logging.info(
+            f"user with id:{message.from_user.id} {message.from_user.username} try to use bot"
+        )
 
 
 #################### reg client ####################
@@ -160,6 +153,7 @@ async def add_legel_entity(
     state: FSMContext,
 ):
     await state.set_state(RegLegalEntityForm.kind)
+    await state.update_data(user_id=message.text)
     await send_message(
         message,
         state,
@@ -180,7 +174,7 @@ async def add_legel_entity(
         message,
         state,
         request,
-        f"Введите название Вашего юр. лица (Иван Иванович Иванов, Виктория, ...)",
+        f"Введите название юр. лица (Иван Иванович Иванов, Виктория, ...)",
         ReplyKeyboardRemove(),
     )
     await state.set_state(RegLegalEntityForm.name)
@@ -196,24 +190,35 @@ async def add_legel_entity(
     await send_message(message, state, request, f"Проверка ...", ReplyKeyboardRemove())
     data = await state.get_data()
     str_temp: str = data["kind"] + " " + data["name"]
+    user_id_from_admin = data["user_id"]
 
-    await request.add_company(str_temp, message.from_user.id)
+    user: User = await request.get_user(message.from_user.id)
+    if user.role == "admin":
+        await request.add_user(user_id_from_admin, None, None, None, "client")
+        await request.add_company(str_temp, user_id_from_admin)
+    else:
+        await request.add_company(str_temp, message.from_user.id)
     await send_message(
         message,
         state,
         request,
-        f"Ваше юр. лицо {str_temp} успешно зарегистрировано!",
+        f"Юр. лицо {str_temp} успешно зарегистрировано!",
         ReplyKeyboardRemove(),
     )
     await state.clear()
-    await state.set_state(OrderForm.add_point)
-    await send_message(
-        message,
-        state,
-        request,
-        f"Чтобы сделать заказ заводу Ponarth, нужно добавить магазин",
-        reply_reg_point_v1,
-    )
+    if user.role == "admin":
+        await send_message(
+            message, state, request, f"Выберете дальнейшее действие.", reply_admin
+        )
+    else:
+        await state.set_state(OrderForm.add_point)
+        await send_message(
+            message,
+            state,
+            request,
+            f"Чтобы сделать заказ заводу Ponarth, нужно добавить магазин",
+            reply_reg_point_v1,
+        )
 
 
 #################### reg client ####################
@@ -523,7 +528,7 @@ async def choose_date(
     date_no_date = datetime.datetime.strptime(date, "%d-%m-%Y")
     sheet.save_order(order_info=order_info, order_data=order_data, date=date_no_date)
 
-    await send_message(message, state, request, date, ReplyKeyboardRemove())
+    # await send_message(message, state, request, date, ReplyKeyboardRemove())
     await state.clear()
 
 
@@ -668,18 +673,41 @@ async def add_product(
             message,
             state,
             request,
-            f"Введите название продукта или список продуктов через Shift+Enter, которое хотите добавить в бота Ponarth.",
+            f"Введите название продукта или список продуктов и число с указанием места через дефис и через Shift+Enter в общем\n Например: Светлое-4, которое хотите добавить в бота Ponarth.",
             ReplyKeyboardRemove(),
         )
     elif mes == "Просмотреть товары":
         products = await request.get_products()
+        products.sort(key=takePlace)
+        str = ""
         for i in range(len(products)):
-            await send_message(
-                message, state, request, f"- {products[i].name}", ReplyKeyboardRemove()
-            )
-            await send_message(message, state, request, f"Конец списка", reply_admin)
+            str += f"- {products[i].name}, позиция - {products[i].place}\n"
+        await send_message(
+            message,
+            state,
+            request,
+            str,
+            ReplyKeyboardRemove(),
+        )
+        await send_message(message, state, request, f"Конец списка", reply_admin)
     elif mes == "Просмотреть заказы":
-        await send_message(message, state, request, f"Заказов нет", reply_admin)
+        link = sheet.link()
+        await send_message(
+            message,
+            state,
+            request,
+            f"Ссылка на таблицу - {link}",
+            reply_admin,
+        )
+    elif mes == "Добавить контрагента вручную":
+        await state.set_state(RegLegalEntityForm.start)
+        await send_message(
+            message,
+            state,
+            request,
+            f"Введите user_id",
+            ReplyKeyboardRemove(),
+        )
 
 
 @rt.message(ProductForm.save)
@@ -701,7 +729,27 @@ async def save_product(
                 ReplyKeyboardRemove(),
             )
         else:
-            await request.save_poduct(names[i])
+            if "-" not in names:
+                await send_message(
+                    message,
+                    state,
+                    request,
+                    f"{names} - введен  не по паттерну",
+                    ReplyKeyboardRemove(),
+                )
+                continue
+            product_data = names[i].split("-")
+            product_name = product_data[0]
+            product_place = product_data[1]
+            products = await request.get_products()
+            products.sort(key=takePlace)
+            logging.info(f"{int(product_place)} - {products[int(product_place)].place}")
+            if int(product_place) == products[(int(product_place) - 1)].place:
+                for b in range((int(product_place) - 1), (len(products))):
+                    await request.change_place(
+                        products[b].name, (products[b].place + 1)
+                    )
+            await request.save_poduct(product_name, product_place)
             await send_message(
                 message,
                 state,
