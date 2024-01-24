@@ -9,6 +9,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.filters import Command, CommandStart
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram_calendar import SimpleCalendar, SimpleCalendarCallback
+from aiogram.types.chat_member_administrator import ChatMemberAdministrator
 
 from core.utils.dbconnect import Request
 from core.keyboards.reply import *
@@ -16,7 +17,7 @@ from core.utils.models import *
 from core.utils.formsstate import *
 from sheets import Sheet
 import logging
-import json
+from env import *
 
 rt = Router()
 
@@ -81,9 +82,13 @@ async def get_start(
     state: FSMContext,
 ):
     user_channel_status = await bot.get_chat_member(
-        chat_id="ID канала", user_id=message.from_user.id
+        chat_id=-1001900638404, user_id=message.from_user.id
     )
-    if user_channel_status["status"] != "left":
+    status = user_channel_status.status
+    logging.info(
+        f"user {message.from_user.username} with id:{message.from_user.id} status = {status}"
+    )
+    if user_channel_status.status != "left":
         user_is = await request.user_exist(message.from_user.id)
 
         if user_is == False and isinstance(user_is, bool):
@@ -252,6 +257,113 @@ async def point(
             f"Введите город в котором находится магазин",
             ReplyKeyboardRemove(),
         )
+    if message.text == "Отредактировать торговую точку":
+        await state.set_state(OrderForm.edit_point)
+        await state.update_data(user_id=message.from_user.id)
+        points = await request.get_all_point_company(message.from_user.id)
+        await send_message(
+            message,
+            state,
+            request,
+            "Выберете торговую точку которую хотите отредактировать",
+            await get_keyboard(points),
+        )
+
+
+@rt.message(OrderForm.edit_point)
+async def edit_point(
+    message: Message,
+    request: Request,
+    state: FSMContext,
+):
+    point = message.text.split('"')[1]
+    await state.update_data(point=point)
+    await state.set_state(OrderForm.edit_point_category)
+    await send_message(
+        message,
+        state,
+        request,
+        "Выберете действие",
+        reply_edit_point,
+    )
+
+
+@rt.message(OrderForm.edit_point_category)
+async def edit_point_category(
+    message: Message,
+    request: Request,
+    state: FSMContext,
+):
+    await state.set_state(OrderForm.save_edit)
+    if message.text == "Изменить адрес":
+        await state.update_data(edit_point="edit_address")
+        await send_message(
+            message,
+            state,
+            request,
+            "Введите город в котором находится магазин",
+            ReplyKeyboardRemove(),
+        )
+    if message.text == "Изменить название":
+        await state.update_data(edit_point="edit_name")
+        await send_message(
+            message,
+            state,
+            request,
+            "Введите название магазина без кавычек",
+            ReplyKeyboardRemove(),
+        )
+
+
+@rt.message(OrderForm.save_edit)
+async def save_edit(
+    message: Message,
+    request: Request,
+    state: FSMContext,
+):
+    data = await state.get_data()
+    edit_point = data["edit_point"]
+    logging.info(f"edit_point - {edit_point}")
+    if edit_point == "edit_address":
+        await state.update_data(city=message.text)
+        await state.update_data(edit_point="save_address")
+        await send_message(
+            message,
+            state,
+            request,
+            f"Введите адресс в котором находится магазин",
+            ReplyKeyboardRemove(),
+        )
+    await state.set_state(OrderForm.save_edit)
+    if edit_point == "edit_name":
+        await state.update_data(name=message.text)
+        name_old = data["point"]
+        name_new = message.text
+        logging.info(f"name_old - {name_old}, name_new - {name_new}")
+
+        await request.update_name_point(name_old, name_new)
+        await state.set_state(OrderForm.start)
+        await send_message(
+            message,
+            state,
+            request,
+            f"Чтобы сделать заказ заводу Ponarth, нужно выбрать или добавить магазин",
+            reply_reg_point_v2,
+        )
+    if edit_point == "save_address":
+        await state.update_data(address=message.text)
+        name = data["point"]
+        city = data["city"]
+        address = message.text
+        await request.update_address_point(name, city, address)
+        await state.set_state(OrderForm.start)
+        await send_message(
+            message,
+            state,
+            request,
+            f"Чтобы сделать заказ заводу Ponarth, нужно выбрать или добавить магазин",
+            reply_reg_point_v2,
+        )
 
 
 def takePlace(elem):
@@ -409,17 +521,18 @@ async def check(
         await send_message(
             message, state, request, f"Выберете вид доставки", reply_is_delivery
         )
-    if answer == "Отредактировать":
-        await state.set_state(OrderForm.edit)
-        await send_message(
-            message, state, request, f"Надо редактировать", ReplyKeyboardRemove()
-        )
-        await message.answer(f"Надо редактировать")
     if answer == "Начать заново":
-        await state.set_state(OrderForm.choose_products)
+        points = await request.get_all_point_company(message.from_user.id)
+        await state.update_data(user_id=message.from_user.id)
         await send_message(
-            message, state, request, f"Начать заново", ReplyKeyboardRemove()
+            message,
+            state,
+            request,
+            "Выберете торговую точку",
+            await get_keyboard(points),
         )
+        await state.clear()
+        await state.set_state(OrderForm.choose_products)
 
 
 @rt.message(OrderForm.choose_date)
@@ -491,45 +604,57 @@ async def choose_date(
     request: Request,
     state: FSMContext,
 ):
-    await send_message(message, state, request, f"Сохранение...", ReplyKeyboardRemove())
-    messages = await request.get_messages_by_user(message.from_user.id)
-    for mes in messages:
-        if mes["delete"] == True:
-            try:
-                message_id = mes["message_id"]
-                await bot.delete_message(chat_id=message.chat.id, message_id=message_id)
-                await request.delete_message(mes)
-            except Exception as e:
-                message_id = mes["message_id"]
-                # logging.warn(f"Ошибка при удалении сообщения {e}, {message_id}")
-    data = await state.get_data()
-    order_data = data["order_str"]
-    order_id = data["order_id"]
-    new_order = order_data.replace("Вы выбрали ", f"Заявка №{order_id}")
-    await send_message(message, state, request, new_order, ReplyKeyboardRemove(), False)
-    order: Order = await request.get_order(order_id=order_id)
-    bucket = await request.get_bucket(order_id=order_id)
-    user: User = await request.get_user(order.user_id)
-    company_id = await request.user_company_exist(user.user_id)
-    company: Company = await request.get_company(company_id=company_id)
-    point: Point = await request.get_point(order.point_id)
-
-    date: str = order.date_delivery.strftime("%d-%m-%Y")
-    id = sheet.create_week_by_day(datetime.datetime.strptime(date, "%d-%m-%Y"))
-    order_info = []
-    order_info.append([f"Заявка№{order.id}:", f"{company.legal_entity}"])
-    if order.is_delivery == True:
-        order_info.append([f"Вид доставки:", f"До адреса торговой точки"])
-        order_info.append([f"Адрес:", f"{point.name}"])
-
+    if message.text == "Начать заново":
+        points = await request.get_all_point_company(message.from_user.id)
+        await send_message(
+            message,
+            state,
+            request,
+            "Выберете торговую точку",
+            await get_keyboard(points),
+        )
+        await state.clear()
+        await state.set_state(OrderForm.choose_products)
     else:
-        order_info.append([f"Вид доставки:", f"Самовывоз"])
-    order_data = bucket
-    date_no_date = datetime.datetime.strptime(date, "%d-%m-%Y")
-    sheet.save_order(order_info=order_info, order_data=order_data, date=date_no_date)
+        await send_message(message, state, request, f"Сохранение...", ReplyKeyboardRemove())
+        messages = await request.get_messages_by_user(message.from_user.id)
+        for mes in messages:
+            if mes["delete"] == True:
+                try:
+                    message_id = mes["message_id"]
+                    await bot.delete_message(chat_id=message.chat.id, message_id=message_id)
+                    await request.delete_message(mes)
+                except Exception as e:
+                    message_id = mes["message_id"]
+                    # logging.warn(f"Ошибка при удалении сообщения {e}, {message_id}")
+        data = await state.get_data()
+        order_data = data["order_str"]
+        order_id = data["order_id"]
+        new_order = order_data.replace("Вы выбрали ", f"Заявка №{order_id}")
+        await send_message(message, state, request, new_order, ReplyKeyboardRemove(), False)
+        order: Order = await request.get_order(order_id=order_id)
+        bucket = await request.get_bucket(order_id=order_id)
+        user: User = await request.get_user(order.user_id)
+        company_id = await request.user_company_exist(user.user_id)
+        company: Company = await request.get_company(company_id=company_id)
+        point: Point = await request.get_point(order.point_id)
 
-    # await send_message(message, state, request, date, ReplyKeyboardRemove())
-    await state.clear()
+        date: str = order.date_delivery.strftime("%d-%m-%Y")
+        id = sheet.create_week_by_day(datetime.datetime.strptime(date, "%d-%m-%Y"))
+        order_info = []
+        order_info.append([f"Заявка№{order.id}:", f"{company.legal_entity}"])
+        if order.is_delivery == True:
+            order_info.append([f"Вид доставки:", f"До адреса торговой точки"])
+            order_info.append([f"Адрес:", f"{point.name}"])
+
+        else:
+            order_info.append([f"Вид доставки:", f"Самовывоз"])
+        order_data = bucket
+        date_no_date = datetime.datetime.strptime(date, "%d-%m-%Y")
+        sheet.save_order(order_info=order_info, order_data=order_data, date=date_no_date)
+
+        # await send_message(message, state, request, date, ReplyKeyboardRemove())
+        await state.clear()
 
 
 #################### order ####################
@@ -574,8 +699,8 @@ async def address_point(
     request: Request,
     state: FSMContext,
 ):
-    await state.set_state(OrderForm.name)
     await state.update_data(address=message.text)
+    await state.set_state(OrderForm.name)
     await send_message(
         message,
         state,

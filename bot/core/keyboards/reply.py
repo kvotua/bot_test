@@ -46,6 +46,16 @@ reply_admin = ReplyKeyboardMarkup(
     selective=True,
 )
 
+reply_edit_point = ReplyKeyboardMarkup(
+    keyboard=[
+        [KeyboardButton(text="Изменить адрес")],
+        [KeyboardButton(text="Изменить название")],
+    ],
+    resize_keyboard=True,
+    one_time_keyboard=True,
+    selective=True,
+)
+
 reply_true_info = ReplyKeyboardMarkup(
     keyboard=[
         [
@@ -63,7 +73,6 @@ reply_true_order = ReplyKeyboardMarkup(
     keyboard=[
         [
             KeyboardButton(text="Все верно"),
-            KeyboardButton(text="Отредактировать"),
             KeyboardButton(text="Начать заново"),
         ]
     ],

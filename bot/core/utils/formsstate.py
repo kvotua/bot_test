@@ -12,6 +12,11 @@ class OrderForm(StatesGroup):
 
     set_point = State()
     choose_products = State()
+
+    edit_point = State()
+    edit_point_category = State()
+    save_edit = State()
+
     count = State()
 
     check = State()
