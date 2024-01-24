@@ -5,6 +5,7 @@ from datetime import datetime
 from dateutil.relativedelta import relativedelta
 from core.utils.dbconnect import Request
 import asyncpg
+from env import spreadsheetid
 import logging
 
 
@@ -14,7 +15,7 @@ import logging
 class Sheet:
     def __init__(self) -> None:
         CREDENTIALS_FILE = "ponarth-orders-from-bot-fb34becd5654.json"
-        self.spreadsheetId = "1iVmuc_nyK_6PyOZKoU7u3untW07onARXwEz_BHa3afI"
+        self.spreadsheetId = spreadsheetid
         self.sheetId = 0
         self.credentials = ServiceAccountCredentials.from_json_keyfile_name(
             CREDENTIALS_FILE,

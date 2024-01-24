@@ -94,6 +94,14 @@ class Request:
         point.update_data()
         return point
 
+    async def update_name_point(self, name_old, name_new):
+        query = f"UPDATE point_company SET name='{name_new}' WHERE name='{name_old}'"
+        await self.connector.execute(query=query)
+
+    async def update_address_point(self, name, city, address):
+        query = f"UPDATE point_company SET city='{city}', address='{address}' WHERE name='{name}'"
+        await self.connector.execute(query=query)
+
     async def get_point_by_name(self, user_id: int, name: str):
         points = await self.get_all_point_company(user_id)
         for i in points:
