@@ -82,7 +82,7 @@ async def get_start(
     state: FSMContext,
 ):
     user_channel_status = await bot.get_chat_member(
-        chat_id=-1001900638404, user_id=message.from_user.id
+        chat_id=channel_ponarth, user_id=message.from_user.id
     )
     status = user_channel_status.status
     logging.info(
@@ -616,13 +616,17 @@ async def choose_date(
         await state.clear()
         await state.set_state(OrderForm.choose_products)
     else:
-        await send_message(message, state, request, f"Сохранение...", ReplyKeyboardRemove())
+        await send_message(
+            message, state, request, f"Сохранение...", ReplyKeyboardRemove()
+        )
         messages = await request.get_messages_by_user(message.from_user.id)
         for mes in messages:
             if mes["delete"] == True:
                 try:
                     message_id = mes["message_id"]
-                    await bot.delete_message(chat_id=message.chat.id, message_id=message_id)
+                    await bot.delete_message(
+                        chat_id=message.chat.id, message_id=message_id
+                    )
                     await request.delete_message(mes)
                 except Exception as e:
                     message_id = mes["message_id"]
@@ -631,7 +635,9 @@ async def choose_date(
         order_data = data["order_str"]
         order_id = data["order_id"]
         new_order = order_data.replace("Вы выбрали ", f"Заявка №{order_id}")
-        await send_message(message, state, request, new_order, ReplyKeyboardRemove(), False)
+        await send_message(
+            message, state, request, new_order, ReplyKeyboardRemove(), False
+        )
         order: Order = await request.get_order(order_id=order_id)
         bucket = await request.get_bucket(order_id=order_id)
         user: User = await request.get_user(order.user_id)
@@ -651,7 +657,9 @@ async def choose_date(
             order_info.append([f"Вид доставки:", f"Самовывоз"])
         order_data = bucket
         date_no_date = datetime.datetime.strptime(date, "%d-%m-%Y")
-        sheet.save_order(order_info=order_info, order_data=order_data, date=date_no_date)
+        sheet.save_order(
+            order_info=order_info, order_data=order_data, date=date_no_date
+        )
 
         # await send_message(message, state, request, date, ReplyKeyboardRemove())
         await state.clear()
