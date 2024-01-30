@@ -6,6 +6,7 @@ async def set_commands(bot: Bot):
     commands = [
         BotCommand(command="start", description="Начало работы"),
         BotCommand(command="help", description="Помощь"),
+        BotCommand(command="sheets", description="Создать новую таблицу"),
         BotCommand(command="cancel", description="Сбросить"),
     ]
 
