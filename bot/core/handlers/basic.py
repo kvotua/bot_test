@@ -74,6 +74,22 @@ async def get_cancel(
     await state.clear()
 
 
+@rt.message(Command("sheets"))
+async def get_cancel(
+    message: Message,
+    request: Request,
+    state: FSMContext,
+):
+    spread = sheet.create_new_spreadsheet()
+    await send_message(
+        message=message,
+        state=state,
+        request=request,
+        answer=f"new spreadsheet: id - {str(spread[0])} link - {spread[1]}",
+        reply=ReplyKeyboardRemove(),
+    )
+
+
 @rt.message(CommandStart())
 async def get_start(
     message: Message,
@@ -396,35 +412,14 @@ async def choose_point(
         )
     kb_products_builder.adjust(3)
     kb_products_builder.row(
-        InlineKeyboardButton(text=f"Завершить набор", callback_data="End")
-    )
-    kb_products_builder.row(
-        InlineKeyboardButton(text=f"Шаг назад", callback_data="Choose_point")
+        InlineKeyboardButton(
+            text=f"Выбрать другую торговую точку", callback_data="Choose_point"
+        )
     )
 
     await send_message(
         message, state, request, f"Выберете товары", kb_products_builder.as_markup()
     )
-
-
-@rt.callback_query(F.data == "Choose_point")
-async def callback_down(
-    call: CallbackQuery,
-    bot: Bot,
-    state: FSMContext,
-    request: Request,
-):
-    await bot.delete_message(
-        chat_id=call.message.chat.id, message_id=call.message.message_id
-    )
-    data = await state.get_data()
-    data["products_buf"] = {}
-    id: int = data["user_id"]
-    points = await request.get_all_point_company(id)
-    await send_call(
-        call, state, request, "Выберете торговую точку", await get_keyboard(points)
-    )
-    await state.set_state(OrderForm.choose_products)
 
 
 @rt.callback_query(ProductButton.filter())
@@ -458,34 +453,67 @@ async def count_point(
     request: Request,
     state: FSMContext,
 ):
-    await state.update_data(count=message.text)
-    data = await state.get_data()
-    products_dict = data["products_buf"]
-    product_count = data["product_count"]
-    products_dict[product_count] = message.text
-    products = await request.get_products()
-    products.sort(key=takePlace)
-    kb_products_builder = InlineKeyboardBuilder()
-    for i in range(len(products)):
-        kb_products_builder.button(
-            text=f"{products[i].name}",
-            callback_data=ProductButton(product_name=f"{products[i].name}"),
+    # проверка на int
+    if not message.text.isdigit():
+        await state.set_state(OrderForm.count)
+        await send_message(
+            message,
+            state,
+            request,
+            f"Укажите количество литров одним числом",
+            ReplyKeyboardRemove(),
         )
-    kb_products_builder.adjust(3)
-    kb_products_builder.row(
-        InlineKeyboardButton(text=f"Завершить набор", callback_data="End")
-    )
-    kb_products_builder.row(
-        InlineKeyboardButton(text=f"Шаг назад", callback_data="Choose_point")
-    )
+    else:
+        await state.update_data(count=message.text)
+        data = await state.get_data()
+        products_dict = data["products_buf"]
+        product_count = data["product_count"]
+        products_dict[product_count] = message.text
+        products = await request.get_products()
+        products.sort(key=takePlace)
+        kb_products_builder = InlineKeyboardBuilder()
+        for i in range(len(products)):
+            kb_products_builder.button(
+                text=f"{products[i].name}",
+                callback_data=ProductButton(product_name=f"{products[i].name}"),
+            )
+        kb_products_builder.adjust(3)
+        kb_products_builder.row(
+            InlineKeyboardButton(
+                text=f"Выбрать другую торговую точку", callback_data="Choose_point"
+            )
+        )
+        kb_products_builder.row(
+            InlineKeyboardButton(text=f"Завершить набор", callback_data="End")
+        )
 
-    await send_message(
-        message,
-        state,
-        request,
-        f"Выберете следующую позицию",
-        kb_products_builder.as_markup(),
+        await send_message(
+            message,
+            state,
+            request,
+            f"Выберете следующую позицию",
+            kb_products_builder.as_markup(),
+        )
+
+
+@rt.callback_query(F.data == "Choose_point")
+async def callback_down(
+    call: CallbackQuery,
+    bot: Bot,
+    state: FSMContext,
+    request: Request,
+):
+    await bot.delete_message(
+        chat_id=call.message.chat.id, message_id=call.message.message_id
     )
+    data = await state.get_data()
+    data["products_buf"] = {}
+    id: int = data["user_id"]
+    points = await request.get_all_point_company(id)
+    await send_call(
+        call, state, request, "Выберете торговую точку", await get_keyboard(points)
+    )
+    await state.set_state(OrderForm.choose_products)
 
 
 @rt.callback_query(F.data == "End")
@@ -574,12 +602,14 @@ async def callback_date(
         for key, value in bucket.items():
             str += f"{key}: {value} литров\n"
         str_push = ""
+        point_id = await request.get_point_by_name(user_id, point)
+        point_all: Point = await request.get_point(point_id)
         is_delivery = True
         if delivery == "Доставка на адрес торговой точки":
-            str_push = f'{str} По адресу торговой точки "{point}"\n Дата доставки: {date_order}'
+            str_push = f'{str}По адресу торговой точки "{point}"\nАдрес: г.{point_all.city}, улица {point_all.address}\n Дата доставки: {date_order}'
         if delivery == "Самовывоз":
             is_delivery = False
-            str_push = f"{str} Вид доставки: Самовывоз\n Дата самовывоза: {date_order}\n Торговая точка: {point}"
+            str_push = f"{str}Вид доставки: Самовывоз\n Дата самовывоза: {date_order}\n Торговая точка: {point}"
         await send_call(
             callback_query,
             state,
@@ -588,7 +618,6 @@ async def callback_date(
             reply_true_order,
         )
         await state.update_data(order_str=str_push)
-        point_id = await request.get_point_by_name(user_id, point)
         order_id = await request.create_order(
             user_id, point_id, is_delivery, date_order
         )
@@ -650,10 +679,12 @@ async def choose_date(
         order_info = []
         order_info.append([f"Заявка№{order.id}:", f"{company.legal_entity}"])
         if order.is_delivery == True:
+            order_info.append([f"Торговая точка:", f"{point.name}"])
             order_info.append([f"Вид доставки:", f"До адреса торговой точки"])
-            order_info.append([f"Адрес:", f"{point.name}"])
+            order_info.append([f"Адрес:", f"г. {point.city}, улица {point.address}"])
 
         else:
+            order_info.append([f"Торговая точка:", f"{point.name}"])
             order_info.append([f"Вид доставки:", f"Самовывоз"])
         order_data = bucket
         date_no_date = datetime.datetime.strptime(date, "%d-%m-%Y")
