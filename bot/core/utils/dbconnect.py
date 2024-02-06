@@ -54,6 +54,15 @@ class Request:
         company.update_data()
         return company
 
+    async def get_all_company(self):
+        query = f"SELECT * FROM company"
+        companys = await self.connector.fetch(query=query, record_class=Company)
+        if companys.__len__() == None:
+            return False
+        for company in companys:
+            company.update_data()
+        return company
+
     async def add_company(self, kind_name, user_id):
         kind_name = kind_name.upper()
         query = f"INSERT INTO company (legal_entity) VALUES ('{kind_name}')"
