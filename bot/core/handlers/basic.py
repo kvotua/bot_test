@@ -16,8 +16,10 @@ from core.keyboards.reply import *
 from core.utils.models import *
 from core.utils.formsstate import *
 from sheets import Sheet
+from datetime import datetime, timedelta
 import logging
 from env import *
+
 
 rt = Router()
 
@@ -74,19 +76,53 @@ async def get_cancel(
     await state.clear()
 
 
+weekday = {
+    0: "пн",
+    1: "вт",
+    2: "ср",
+    3: "чт",
+    4: "пт",
+    5: "сб",
+    6: "вс",
+}
+
 @rt.message(Command("sheets"))
 async def get_cancel(
     message: Message,
     request: Request,
     state: FSMContext,
 ):
-    spread = sheet.create_new_spreadsheet()
+
+    date = datetime.now()
+    year = date.year
+    month = date.month
+    day = date.day
+
+    start_date = datetime(year, month, day)
+    cur_date = start_date
+    builder = InlineKeyboardBuilder()
+    text_inline = f"{weekday[start_date.weekday()]}"
+    builder.button(text=text_inline, callback_data=f"set")
+    for index in range(1, 7):
+        cur_date = cur_date + timedelta(days=1)
+        text_inline = f"{weekday[cur_date.weekday()]}"
+        builder.button(text=text_inline, callback_data=f"set")
+
+    text_for_button = f"{str(start_date.date().day)}.{start_date.strftime('%m')}"
+    builder.button(text=text_for_button, callback_data=f"set")
+    cur_date = start_date
+
+    for index in range(1, 7):
+        cur_date = cur_date + timedelta(days=1)
+        text_for_button = f"{str(cur_date.date().day)}.{cur_date.strftime('%m')}"
+        builder.button(text=text_for_button, callback_data=f"set")
+    builder.adjust(7)
     await send_message(
         message=message,
         state=state,
         request=request,
-        answer=f"new spreadsheet: id - {str(spread[0])} link - {spread[1]}",
-        reply=ReplyKeyboardRemove(),
+        answer="Выберете дату",
+        reply=builder.as_markup(),
     )
 
 
@@ -107,7 +143,7 @@ async def get_start(
     if user_channel_status.status != "left":
         user_is = await request.user_exist(message.from_user.id)
 
-        if user_is == False and isinstance(user_is, bool):
+        if (user_is == False and isinstance(user_is, bool)) or user_is.username == None:
             await request.add_user(
                 message.from_user.id,
                 message.from_user.username,
@@ -534,7 +570,9 @@ async def process_callback_button1(
         answer += f"{key} - {value} литров \n"
     await state.update_data(bucket=products_dict.copy())
     products_dict.clear()
-    await send_call(call, state, request, f"{answer}Все верно?", reply_true_order)
+    await send_call(
+        call, state, request, f"{answer}Все верно?", reply_true_order_with_comment
+    )
 
 
 @rt.message(OrderForm.check)
@@ -551,7 +589,6 @@ async def check(
         )
     if answer == "Начать заново":
         points = await request.get_all_point_company(message.from_user.id)
-        await state.update_data(user_id=message.from_user.id)
         await send_message(
             message,
             state,
@@ -561,6 +598,29 @@ async def check(
         )
         await state.clear()
         await state.set_state(OrderForm.choose_products)
+        await state.update_data(user_id=message.from_user.id)
+    if answer == "Оставить комментарий":
+        await state.set_state(OrderForm.save_comment)
+        await send_message(
+            message, state, request, f"Оставьте свой комментарий", ReplyKeyboardRemove()
+        )
+
+
+@rt.message(OrderForm.save_comment)
+async def check(
+    message: Message,
+    request: Request,
+    state: FSMContext,
+):
+    await state.set_state(OrderForm.check)
+    await state.update_data(comment=message.text)
+    data = await state.get_data()
+    bucket = data["bucket"]
+    answer = f"Ваш заказ:\n"
+    for key, value in bucket.items():
+        answer += f"{key} - {value} литров \n"
+    answer += f"{message.text}\n"
+    await send_message(message, state, request, f"{answer}Все верно?", reply_true_order)
 
 
 @rt.message(OrderForm.choose_date)
@@ -571,31 +631,63 @@ async def choose_date(
 ):
     await state.update_data(delivery=message.text)
     await state.update_data(user_id=message.from_user.id)
+    date = datetime.now()
+    year = date.year
+    month = date.month
+    day = date.day
+
+    start_date = datetime(year, month, day)
+    cur_date = start_date
+    builder = InlineKeyboardBuilder()
+    text_inline = f"{weekday[start_date.weekday()]}"
+    # builder.button(text=text_inline, callback_data=f"set")
+    for index in range(1, 7):
+        cur_date = cur_date + timedelta(days=1)
+        text_inline = f"{weekday[cur_date.weekday()]}"
+        builder.button(text=text_inline, callback_data=f"set")
+
+    text_for_button = f"{str(start_date.date().day)}.{start_date.strftime('%m')}"
+
+    # builder.button(
+    #     text=text_for_button,
+    #     callback_data=DateCallback(date=start_date.strftime("%Y-%m-%d")),
+    # )
+    cur_date = start_date
+
+    for index in range(1, 7):
+        cur_date = cur_date + timedelta(days=1)
+        text_for_button = f"{str(cur_date.date().day)}.{cur_date.strftime('%m')}"
+        builder.button(
+            text=text_for_button,
+            callback_data=DateCallback(date=cur_date.strftime("%Y-%m-%d")),
+        )
+    builder.adjust(6)
     await send_message(
-        message,
-        state,
-        request,
-        f"Выберете день доставки/самовывоза",
-        await SimpleCalendar().start_calendar(),
+        message=message,
+        state=state,
+        request=request,
+        answer=f"Выберете день доставки/самовывоза",
+        reply=builder.as_markup(),
     )
 
 
-@rt.callback_query(SimpleCalendarCallback.filter())
+@rt.callback_query(DateCallback.filter())
 async def callback_date(
     callback_query: CallbackQuery,
     callback_data: CallbackData,
     state: FSMContext,
     request: Request,
 ):
-    calendar = SimpleCalendar()
-    selected, date = await calendar.process_selection(callback_query, callback_data)
-    if selected:
+    date = callback_query.data
+    if date:
         await state.set_state(OrderForm.save_order)
-        await state.update_data(date_order=date.strftime("%d/%m/%Y"))
+        await state.update_data(date_order=date)
         data = await state.get_data()
         bucket = data["bucket"]
         delivery = data["delivery"]
-        date_order = data["date_order"]
+        date_order = data["date_order"].split(":")[1]
+        date_order = datetime.strptime(date_order, "%Y-%m-%d")
+        date_order = date_order.strftime("%d-%m-%Y")
         point = data["point"]
         user_id = data["user_id"]
         str = f"Вы выбрали \n"
@@ -606,10 +698,16 @@ async def callback_date(
         point_all: Point = await request.get_point(point_id)
         is_delivery = True
         if delivery == "Доставка на адрес торговой точки":
-            str_push = f'{str}По адресу торговой точки "{point}"\nАдрес: г.{point_all.city}, улица {point_all.address}\n Дата доставки: {date_order}'
+            str_push = f'{str}По адресу торговой точки "{point}"\nАдрес: г.{point_all.city}, улица {point_all.address}\nДата доставки: {date_order}\n'
         if delivery == "Самовывоз":
             is_delivery = False
-            str_push = f"{str}Вид доставки: Самовывоз\n Дата самовывоза: {date_order}\n Торговая точка: {point}"
+            str_push = f"{str}Вид доставки: Самовывоз\n Дата самовывоза: {date_order}\n Торговая точка: {point}\n"
+        try:
+            comment = data["comment"]
+            if comment != None:
+                str_push += f"Комментарий к заказу: {comment}\n"
+        except:
+            logging.error("Нет комментария")
         await send_call(
             callback_query,
             state,
@@ -675,7 +773,7 @@ async def choose_date(
         point: Point = await request.get_point(order.point_id)
 
         date: str = order.date_delivery.strftime("%d-%m-%Y")
-        id = sheet.create_week_by_day(datetime.datetime.strptime(date, "%d-%m-%Y"))
+        id = await sheet.create_week_by_day(datetime.strptime(date, "%d-%m-%Y"))
         order_info = []
         order_info.append([f"Заявка№{order.id}:", f"{company.legal_entity}"])
         if order.is_delivery == True:
@@ -686,9 +784,18 @@ async def choose_date(
         else:
             order_info.append([f"Торговая точка:", f"{point.name}"])
             order_info.append([f"Вид доставки:", f"Самовывоз"])
+        try:
+            comment = data["comment"]
+            if comment != None:
+                order_info.append([f"Комментарий к заказу:", f"{comment}"])
+        except:
+            logging.error("Нет комментария")
+        order_info.append(
+            [f"Время создания заказа", f"{datetime.now().strftime('%d-%m-%Y %H:%M')}"]
+        )
         order_data = bucket
-        date_no_date = datetime.datetime.strptime(date, "%d-%m-%Y")
-        sheet.save_order(
+        date_no_date = datetime.strptime(date, "%d-%m-%Y")
+        await sheet.save_order(
             order_info=order_info, order_data=order_data, date=date_no_date
         )
 
@@ -855,7 +962,7 @@ async def add_product(
         )
         await send_message(message, state, request, f"Конец списка", reply_admin)
     elif mes == "Просмотреть заказы":
-        link = sheet.link()
+        link = await sheet.link()
         await send_message(
             message,
             state,
@@ -870,6 +977,24 @@ async def add_product(
             state,
             request,
             f"Введите user_id",
+            ReplyKeyboardRemove(),
+        )
+    elif mes == "Добавить на юр. лицо еще одного человека":
+        company = request.get_all_company()
+        keybord_companys = ReplyKeyboardBuilder()
+        await send_message(
+            message,
+            state,
+            request,
+            f"Выберете юр. лицо",
+            ReplyKeyboardRemove(),
+        )
+    elif mes == "Добавить контрагенту прайс":
+        await send_message(
+            message,
+            state,
+            request,
+            f"Выберете юр. лицо",
             ReplyKeyboardRemove(),
         )
 

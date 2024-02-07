@@ -17,6 +17,8 @@ class OrderForm(StatesGroup):
     edit_point_category = State()
     save_edit = State()
 
+    save_comment = State()
+
     count = State()
 
     check = State()

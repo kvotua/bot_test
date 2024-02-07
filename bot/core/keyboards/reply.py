@@ -40,6 +40,8 @@ reply_admin = ReplyKeyboardMarkup(
         [KeyboardButton(text="Добавить товар")],
         [KeyboardButton(text="Указать место продукту")],
         [KeyboardButton(text="Добавить контрагента вручную")],
+        [KeyboardButton(text="Добавить на юр. лицо еще одного человека")],
+        [KeyboardButton(text="Добавить контрагенту прайс")],
     ],
     resize_keyboard=True,
     one_time_keyboard=True,
@@ -75,6 +77,21 @@ reply_true_order = ReplyKeyboardMarkup(
             KeyboardButton(text="Все верно"),
             KeyboardButton(text="Начать заново"),
         ]
+    ],
+    resize_keyboard=True,
+    one_time_keyboard=True,
+    selective=True,
+)
+
+reply_true_order_with_comment = ReplyKeyboardMarkup(
+    keyboard=[
+        [
+            KeyboardButton(text="Все верно"),
+            KeyboardButton(text="Начать заново"),
+        ],
+        [
+            KeyboardButton(text="Оставить комментарий"),
+        ],
     ],
     resize_keyboard=True,
     one_time_keyboard=True,
