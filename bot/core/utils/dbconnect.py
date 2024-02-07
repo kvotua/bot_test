@@ -29,12 +29,12 @@ class Request:
         return user
 
     async def user_exist(self, user_id):
-        query = f"SELECT user_id FROM users WHERE user_id={user_id};"
-        id = await self.connector.fetchrow(query=query)
+        query = f"SELECT * FROM users WHERE user_id={user_id};"
+        user = await self.connector.fetchrow(query=query, record_class=User)
         if id == None:
             return False
-        id = id["user_id"]
-        return id
+        user.update_data()
+        return user
 
     async def update_user(self, user_id, username, firstname, lastname, role):
         self.add_user(user_id, username, firstname, lastname, role)
@@ -75,6 +75,12 @@ class Request:
         )
         await self.connector.execute(query)
         return id
+
+    async def add_user_in_exist_company(self, user_id, company_id):
+        if not self.user_exist(user_id):
+            self.add_user(
+                user_id, username=None, firstname=None, lastname=None, role="client"
+            )
 
     async def user_company_exist(self, user_id) -> bool:
         query = f"SELECT company_id FROM users_company WHERE user_id={user_id}"

@@ -83,6 +83,21 @@ reply_true_order = ReplyKeyboardMarkup(
     selective=True,
 )
 
+reply_true_order_with_comment = ReplyKeyboardMarkup(
+    keyboard=[
+        [
+            KeyboardButton(text="Все верно"),
+            KeyboardButton(text="Начать заново"),
+        ],
+        [
+            KeyboardButton(text="Оставить комментарий"),
+        ],
+    ],
+    resize_keyboard=True,
+    one_time_keyboard=True,
+    selective=True,
+)
+
 reply_is_delivery = ReplyKeyboardMarkup(
     keyboard=[
         [
