@@ -47,6 +47,48 @@ class Sheet:
     def link(self):
         return f"https://docs.google.com/spreadsheets/d/{self.spreadsheetId}"
 
+    def create_new_spreadsheet(self):
+        spreadsheet = (
+            self.service.spreadsheets()
+            .create(
+                body={
+                    "properties": {
+                        "title": f"Заказы",
+                        "locale": "ru_RU",
+                    },
+                    "sheets": [
+                        {
+                            "properties": {
+                                "sheetType": "GRID",
+                                "sheetId": 0,
+                                "title": "Лист номер один",
+                                "gridProperties": {"rowCount": 100, "columnCount": 15},
+                            }
+                        }
+                    ],
+                }
+            )
+            .execute()
+        )
+        spreadsheetId = spreadsheet["spreadsheetId"]
+        access = (
+            self.driveService.permissions()
+            .create(
+                fileId=spreadsheetId,
+                body={
+                    "type": "anyone",
+                    "role": "writer",
+                },
+                fields="id",
+            )
+            .execute()
+        )
+        spread = [
+            spreadsheetId,
+            f"https://docs.google.com/spreadsheets/d/{spreadsheetId}",
+        ]
+        return spread
+
     week = {
         0: "понедельник",
         1: "вторник",
