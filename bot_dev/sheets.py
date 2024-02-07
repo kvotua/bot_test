@@ -7,6 +7,7 @@ from core.utils.dbconnect import Request
 import asyncpg
 from env import spreadsheetid
 import logging
+import asyncio
 
 
 # print("https://docs.google.com/spreadsheets/d/" + spreadsheetId)
@@ -44,10 +45,11 @@ class Sheet:
             .execute()
         )
 
-    def link(self):
+    async def link(self):
         return f"https://docs.google.com/spreadsheets/d/{self.spreadsheetId}"
 
-    def create_new_spreadsheet(self):
+
+    async def create_new_spreadsheet(self):
         spreadsheet = (
             self.service.spreadsheets()
             .create(
@@ -99,7 +101,7 @@ class Sheet:
         6: "воскресенье",
     }
 
-    def get_name_sheet_by_id(self, sheet_id: int):
+    async def get_name_sheet_by_id(self, sheet_id: int):
         spreadsheet = (
             self.service.spreadsheets().get(spreadsheetId=self.spreadsheetId).execute()
         )
@@ -109,18 +111,16 @@ class Sheet:
             if id == sheet_id:
                 return sheet["properties"]["title"]
 
-    def save_order(self, order_info: list, order_data: dict, date):
+    async def save_order(self, order_info: list, order_data: dict, date):
         data_write = []
         for i in order_info:
             data_write.append(i)
         for key, value in order_data.items():
             data_write.append([key, value])
         logging.info(data_write)
-        place = self.what_is_position_for_write_order(date)
+        place = await self.what_is_position_for_write_order(date)
         column_start = place[3]
-        ranges = (
-            f"{self.get_name_sheet_by_id(place[2])}!{place[0]}{column_start}:{place[1]}"
-        )
+        ranges = f"{await self.get_name_sheet_by_id(place[2])}!{place[0]}{column_start}:{place[1]}"
         result = (
             self.service.spreadsheets()
             .values()
@@ -139,7 +139,7 @@ class Sheet:
             )
             .execute()
         )
-        end_cell = self.what_is_position_for_write_order(date)
+        end_cell = await self.what_is_position_for_write_order(date)
 
         logging.info(
             f"range {ranges} in new kind {place[2]}, {place[4]}{column_start}:{place[5]}{end_cell[3]}"
@@ -297,29 +297,29 @@ class Sheet:
         13: "N",
     }
 
-    def what_is_position_for_write_order(self, date):
-        id = self.create_week_by_day(date=date)
-        week = self.get_week_by_day(date)
+    async def what_is_position_for_write_order(self, date):
+        id = await self.create_week_by_day(date=date)
+        week = await self.get_week_by_day(date)
         place = 0
         for i in range(len(week)):
             if week[i] == date.strftime("%d-%m-%Y"):
                 place = i
         place = place * 2
         logging.info(f"place: {place}")
-        logging.info(f"sheet name: {self.get_name_sheet_by_id(id)}")
+        logging.info(f"sheet name: {await self.get_name_sheet_by_id(id)}")
         first_column = f"{self.sheet_column[place]}"
         second_column = f"{self.sheet_column[place+1]}"
         first = 2
         second = 7
-        ranges = f"{self.get_name_sheet_by_id(id)}!{first_column}{first}:{second_column}{second}"
+        ranges = f"{await self.get_name_sheet_by_id(id)}!{first_column}{first}:{second_column}{second}"
         logging.info(f"start range {ranges}")
-        cell_start = self.check_cell_empty(ranges=ranges)
+        cell_start = await self.check_cell_empty(ranges=ranges)
         while cell_start == None:
             first += 5
             second += 5
-            ranges = f"{self.get_name_sheet_by_id(id)}!{first_column}{first}:{second_column}{second}"
+            ranges = f"{await self.get_name_sheet_by_id(id)}!{first_column}{first}:{second_column}{second}"
             logging.info(ranges)
-            cell_start = self.check_cell_empty(ranges=ranges)
+            cell_start = await self.check_cell_empty(ranges=ranges)
 
         column = [
             first_column,
@@ -332,7 +332,7 @@ class Sheet:
         logging.info(f"column info : {column}")
         return column
 
-    def check_cell_empty(self, ranges):
+    async def check_cell_empty(self, ranges):
         results = (
             self.service.spreadsheets()
             .values()
@@ -388,9 +388,9 @@ class Sheet:
         ranges_res_int: int = int(ranges_res_0) + cell1 + 1
         return f"{ranges_res_int}"
 
-    def create_now_week(self):
+    async def create_now_week(self):
         date = datetime.now()
-        week = self.get_week_by_day(date)
+        week = await self.get_week_by_day(date)
         spreadsheet = (
             self.service.spreadsheets().get(spreadsheetId=self.spreadsheetId).execute()
         )
@@ -403,8 +403,8 @@ class Sheet:
         id = self.write_week(week)
         return id
 
-    def create_week_by_day(self, date):
-        week = self.get_week_by_day(date)
+    async def create_week_by_day(self, date):
+        week = await self.get_week_by_day(date)
         spreadsheet = (
             self.service.spreadsheets().get(spreadsheetId=self.spreadsheetId).execute()
         )
@@ -417,7 +417,7 @@ class Sheet:
         id = self.write_week(week)
         return id
 
-    def get_week_by_day(self, date: datetime):
+    async def get_week_by_day(self, date: datetime):
         day_week = datetime.weekday(date)
         now_week = []
         relative_delta = relativedelta(days=day_week)
@@ -433,8 +433,8 @@ class Sheet:
     write_dates = None
     count_place_for_date = 2
 
-    def write_week(self, week: list):
-        sheet = self.create_sheet(week[0])
+    async def write_week(self, week: list):
+        sheet = await self.create_sheet(week[0])
         sheet_name = sheet["title"]
         ranges = f"{sheet_name}!A1"
         week_x2 = []
@@ -494,7 +494,7 @@ class Sheet:
 
         return sheet["sheetId"]
 
-    def create_sheet(self, start_date: datetime):
+    async def create_sheet(self, start_date: datetime):
         title_list = f"{start_date}"
         new_sheet = (
             self.service.spreadsheets()
@@ -521,8 +521,8 @@ class Sheet:
 
         return new_sheet["replies"][0]["addSheet"]["properties"]
 
-    def new_weeks(self, count_week: int):
+    async def new_weeks(self, count_week: int):
         date = datetime.now()
 
-    def add_order(self):
+    async def add_order(self):
         logging.info("")
