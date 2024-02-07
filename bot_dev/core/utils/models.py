@@ -113,6 +113,10 @@ class ProductButton(CallbackData, prefix="product"):
     product_name: str
 
 
+class DateCallback(CallbackData, prefix="date"):
+    date: str
+
+
 class Order(Record):
     id: int
     date_create_order: datetime
