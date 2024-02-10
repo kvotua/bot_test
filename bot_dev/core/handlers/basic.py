@@ -16,6 +16,7 @@ from core.keyboards.reply import *
 from core.utils.models import *
 from core.utils.formsstate import *
 from sheets import Sheet
+import asyncio
 from datetime import datetime, timedelta
 import logging
 from env import *
@@ -85,45 +86,6 @@ weekday = {
     5: "сб",
     6: "вс",
 }
-
-@rt.message(Command("sheets"))
-async def get_cancel(
-    message: Message,
-    request: Request,
-    state: FSMContext,
-):
-
-    date = datetime.now()
-    year = date.year
-    month = date.month
-    day = date.day
-
-    start_date = datetime(year, month, day)
-    cur_date = start_date
-    builder = InlineKeyboardBuilder()
-    text_inline = f"{weekday[start_date.weekday()]}"
-    builder.button(text=text_inline, callback_data=f"set")
-    for index in range(1, 7):
-        cur_date = cur_date + timedelta(days=1)
-        text_inline = f"{weekday[cur_date.weekday()]}"
-        builder.button(text=text_inline, callback_data=f"set")
-
-    text_for_button = f"{str(start_date.date().day)}.{start_date.strftime('%m')}"
-    builder.button(text=text_for_button, callback_data=f"set")
-    cur_date = start_date
-
-    for index in range(1, 7):
-        cur_date = cur_date + timedelta(days=1)
-        text_for_button = f"{str(cur_date.date().day)}.{cur_date.strftime('%m')}"
-        builder.button(text=text_for_button, callback_data=f"set")
-    builder.adjust(7)
-    await send_message(
-        message=message,
-        state=state,
-        request=request,
-        answer="Выберете дату",
-        reply=builder.as_markup(),
-    )
 
 
 @rt.message(CommandStart())
@@ -773,7 +735,9 @@ async def choose_date(
         point: Point = await request.get_point(order.point_id)
 
         date: str = order.date_delivery.strftime("%d-%m-%Y")
-        id = await sheet.create_week_by_day(datetime.strptime(date, "%d-%m-%Y"))
+        id = asyncio.create_task(
+            sheet.create_week_by_day(datetime.strptime(date, "%d-%m-%Y"))
+        )
         order_info = []
         order_info.append([f"Заявка№{order.id}:", f"{company.legal_entity}"])
         if order.is_delivery == True:
@@ -795,8 +759,10 @@ async def choose_date(
         )
         order_data = bucket
         date_no_date = datetime.strptime(date, "%d-%m-%Y")
-        await sheet.save_order(
-            order_info=order_info, order_data=order_data, date=date_no_date
+        asyncio.create_task(
+            sheet.save_order(
+                order_info=order_info, order_data=order_data, date=date_no_date
+            )
         )
 
         # await send_message(message, state, request, date, ReplyKeyboardRemove())
