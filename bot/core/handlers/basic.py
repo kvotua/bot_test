@@ -16,6 +16,7 @@ from core.keyboards.reply import *
 from core.utils.models import *
 from core.utils.formsstate import *
 from sheets import Sheet
+import asyncio
 from datetime import datetime, timedelta
 import logging
 from env import *
@@ -773,7 +774,9 @@ async def choose_date(
         point: Point = await request.get_point(order.point_id)
 
         date: str = order.date_delivery.strftime("%d-%m-%Y")
-        id = await sheet.create_week_by_day(datetime.strptime(date, "%d-%m-%Y"))
+        id = asyncio.create_task(
+            sheet.create_week_by_day(datetime.strptime(date, "%d-%m-%Y"))
+        )
         order_info = []
         order_info.append([f"Заявка№{order.id}:", f"{company.legal_entity}"])
         if order.is_delivery == True:
@@ -795,9 +798,9 @@ async def choose_date(
         )
         order_data = bucket
         date_no_date = datetime.strptime(date, "%d-%m-%Y")
-        await sheet.save_order(
+        asyncio.create_task(sheet.save_order(
             order_info=order_info, order_data=order_data, date=date_no_date
-        )
+        ))
 
         # await send_message(message, state, request, date, ReplyKeyboardRemove())
         await state.clear()
