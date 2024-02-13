@@ -211,29 +211,12 @@ async def add_legel_entity(
     request: Request,
     state: FSMContext,
 ):
-    await state.set_state(RegLegalEntityForm.kind)
-    await state.update_data(user_id=message.text)
-    await send_message(
-        message,
-        state,
-        request,
-        f"Введите вид юр. лица (ИП, ООО, ...)",
-        ReplyKeyboardRemove(),
-    )
-
-
-@rt.message(RegLegalEntityForm.kind)
-async def add_legel_entity(
-    message: Message,
-    request: Request,
-    state: FSMContext,
-):
     await state.update_data(kind=message.text)
     await send_message(
         message,
         state,
         request,
-        f"Введите название юр. лица (Иван Иванович Иванов, Виктория, ...)",
+        f"Введите юр. лицо (ИП Иван Иванович Иванов, OOO Виктория, ...)",
         ReplyKeyboardRemove(),
     )
     await state.set_state(RegLegalEntityForm.name)
@@ -249,19 +232,19 @@ async def add_legel_entity(
     await send_message(message, state, request, f"Проверка ...", ReplyKeyboardRemove())
     data = await state.get_data()
     str_temp: str = data["kind"] + " " + data["name"]
-    user_id_from_admin = data["user_id"]
 
     user: User = await request.get_user(message.from_user.id)
     if user.role == "admin":
+        user_id_from_admin = data["user_id"]
         await request.add_user(user_id_from_admin, None, None, None, "client")
-        await request.add_company(str_temp, user_id_from_admin)
+        await request.add_company(data["name"], user_id_from_admin)
     else:
-        await request.add_company(str_temp, message.from_user.id)
+        await request.add_company(data["name"], message.from_user.id)
     await send_message(
         message,
         state,
         request,
-        f"Юр. лицо {str_temp} успешно зарегистрировано!",
+        f"Юр. лицо {data["name"]} успешно зарегистрировано!",
         ReplyKeyboardRemove(),
     )
     await state.clear()
@@ -302,6 +285,7 @@ async def point(
             await get_keyboard(points),
         )
         await state.set_state(OrderForm.choose_products)
+        await state.update_data(products_buf={})
     if message.text == "Зарегистрировать торговую точку":
         await state.set_state(OrderForm.city)
         await send_message(
@@ -439,7 +423,10 @@ async def choose_point(
         ReplyKeyboardRemove(),
     )
     await state.update_data(point=point)
-    await state.update_data(products_buf={})
+    data = await state.get_data()
+    product_start = data['products_buf']
+    product_start[point] = f"Адрес"
+    await state.update_data(products_buf=product_start)
     products = await request.get_products()
     products.sort(key=takePlace)
     kb_products_builder = InlineKeyboardBuilder()
@@ -456,7 +443,7 @@ async def choose_point(
     )
 
     await send_message(
-        message, state, request, f"Выберете товары", kb_products_builder.as_markup()
+        message, state, request, f"Выберете товары (приставки 20л и 30л обозначают объем кеги, все остальные сорта пива в кегах объем которых 20л)", kb_products_builder.as_markup()
     )
 
 
@@ -544,8 +531,8 @@ async def callback_down(
     await bot.delete_message(
         chat_id=call.message.chat.id, message_id=call.message.message_id
     )
-    data = await state.get_data()
-    data["products_buf"] = {}
+    # data = await state.get_data()
+    # data["products_buf"] = {}
     id: int = data["user_id"]
     points = await request.get_all_point_company(id)
     await send_call(
@@ -645,6 +632,8 @@ async def choose_date(
     # builder.button(text=text_inline, callback_data=f"set")
     for index in range(1, 7):
         cur_date = cur_date + timedelta(days=1)
+        if cur_date.weekday() == 5 or cur_date.weekday() == 6:
+            continue
         text_inline = f"{weekday[cur_date.weekday()]}"
         builder.button(text=text_inline, callback_data=f"set")
 
@@ -658,6 +647,8 @@ async def choose_date(
 
     for index in range(1, 7):
         cur_date = cur_date + timedelta(days=1)
+        if cur_date.weekday() == 5 or cur_date.weekday() == 6:
+            continue
         text_for_button = f"{str(cur_date.date().day)}.{cur_date.strftime('%m')}"
         builder.button(
             text=text_for_button,
@@ -799,9 +790,11 @@ async def choose_date(
         )
         order_data = bucket
         date_no_date = datetime.strptime(date, "%d-%m-%Y")
-        asyncio.create_task(sheet.save_order(
-            order_info=order_info, order_data=order_data, date=date_no_date
-        ))
+        asyncio.create_task(
+            sheet.save_order(
+                order_info=order_info, order_data=order_data, date=date_no_date
+            )
+        )
 
         # await send_message(message, state, request, date, ReplyKeyboardRemove())
         await state.clear()
