@@ -110,12 +110,12 @@ class Sheet:
             if id == sheet_id:
                 return sheet["properties"]["title"]
 
-    async def save_order(self, order_info: list, order_data: dict, date):
+    async def save_order(self, order_info: list, order_data: list, date):
         data_write = []
         for i in order_info:
             data_write.append(i)
-        for key, value in order_data.items():
-            data_write.append([key, value])
+        for i in order_data:
+            data_write.append(i)
         logging.info(data_write)
         place = await self.what_is_position_for_write_order(date)
         column_start = place[3]
@@ -146,30 +146,54 @@ class Sheet:
 
         width_cell_main_line = 10 * (len(data_write[0][1])) / 2
         if width_cell_main_line < 90:
-            width_cell_main_line = 100
-        result2 = (
-            self.service.spreadsheets()
-            .batchUpdate(
-                spreadsheetId=self.spreadsheetId,
-                body={
-                    "requests": [
-                        {
-                            "updateDimensionProperties": {
-                                "range": {
-                                    "sheetId": place[2],
-                                    "dimension": "COLUMNS",
-                                    "startIndex": place[5],
-                                    "endIndex": (place[5] + 1),
-                                },
-                                "properties": {"pixelSize": width_cell_main_line},
-                                "fields": "pixelSize",
-                            }
-                        },
-                    ]
-                },
+            width_cell_main_line = 150
+            result2 = (
+                self.service.spreadsheets()
+                .batchUpdate(
+                    spreadsheetId=self.spreadsheetId,
+                    body={
+                        "requests": [
+                            {
+                                "updateDimensionProperties": {
+                                    "range": {
+                                        "sheetId": place[2],
+                                        "dimension": "COLUMNS",
+                                        "startIndex": place[5],
+                                        "endIndex": (place[5] + 1),
+                                    },
+                                    "properties": {"pixelSize": width_cell_main_line},
+                                    "fields": "pixelSize",
+                                }
+                            },
+                        ]
+                    },
+                )
+                .execute()
             )
-            .execute()
-        )
+        else:
+            result2 = (
+                self.service.spreadsheets()
+                .batchUpdate(
+                    spreadsheetId=self.spreadsheetId,
+                    body={
+                        "requests": [
+                            {
+                                "updateDimensionProperties": {
+                                    "range": {
+                                        "sheetId": place[2],
+                                        "dimension": "COLUMNS",
+                                        "startIndex": place[5],
+                                        "endIndex": (place[5] + 1),
+                                    },
+                                    "properties": {"pixelSize": width_cell_main_line},
+                                    "fields": "pixelSize",
+                                }
+                            },
+                        ]
+                    },
+                )
+                .execute()
+            )
         logging.info(f"размер в пикселях: {width_cell_main_line}")
         result3 = (
             self.service.spreadsheets()
@@ -399,7 +423,7 @@ class Sheet:
             if sheet_name == week[0]:
                 logging.info(f"{sheet_name} - {week[0]} - now check")
                 return sheet["properties"]["sheetId"]
-        id = self.write_week(week)
+        id = await self.write_week(week)
         return id
 
     async def create_week_by_day(self, date):
@@ -413,7 +437,7 @@ class Sheet:
             if sheet_name == week[0]:
                 logging.info(f"{sheet_name} - {week[0]}")
                 return sheet["properties"]["sheetId"]
-        id = self.write_week(week)
+        id = await self.write_week(week)
         return id
 
     async def get_week_by_day(self, date: datetime):
