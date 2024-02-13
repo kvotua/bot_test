@@ -122,7 +122,7 @@ class Order(Record):
     date_create_order: datetime
     user_id: int
     status: str
-    point_id: int
+    company_id: int
     is_delivery: bool
     date_delivery: datetime
 
@@ -131,6 +131,6 @@ class Order(Record):
         self.date_create_order = self["date_create_order"]
         self.user_id = self["user_id"]
         self.status = self["status"]
-        self.point_id = self["point_id"]
+        self.company_id = self["company_id"]
         self.is_delivery = self["is_delivery"]
         self.date_delivery = self["date_delivery"]

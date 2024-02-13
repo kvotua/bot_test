@@ -162,10 +162,12 @@ class Request:
 
     status = ["created", "processed", "awaiting pickup", "pickup", "delivered"]
 
-    async def create_order(self, user_id: int, point_id: int, is_delivery: bool, date):
+    async def create_order(
+        self, user_id: int, company_id: int, is_delivery: bool, date
+    ):
         temp = str(date).replace("/", "-")
         date_order = datetime.datetime.strptime(temp, "%d-%m-%Y").date()
-        query = f"INSERT INTO orders (date_create_order, user_id, status, point_id, is_delivery, date_delivery) VALUES ('{datetime.datetime.now():%Y-%m-%d %H:%M:%S}', {user_id}, '{self.status[0]}', {point_id}, {is_delivery}, '{date_order}') RETURNING id;"
+        query = f"INSERT INTO orders (date_create_order, user_id, status, company_id, is_delivery, date_delivery) VALUES ('{datetime.datetime.now():%Y-%m-%d %H:%M:%S}', {user_id}, '{self.status[0]}', {company_id}, {is_delivery}, '{date_order}') RETURNING id;"
         order_id = await self.connector.fetchrow(query)
         return order_id["id"]
 
@@ -177,8 +179,9 @@ class Request:
 
     async def save_bucket_by_order(self, order_id: int, bucket: dict):
         for key, value in bucket.items():
-            query = f"INSERT INTO orders_products (order_id, count, product_name) VALUES ({order_id}, {value}, '{key}' )"
-            await self.connector.execute(query=query)
+            if value.isdigit():
+                query = f"INSERT INTO orders_products (order_id, count, product_name) VALUES ({order_id}, {value}, '{key}' )"
+                await self.connector.execute(query=query)
 
     async def get_bucket(self, order_id):
         query = (
