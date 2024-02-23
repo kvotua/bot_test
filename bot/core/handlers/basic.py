@@ -144,10 +144,9 @@ async def get_start(
                     message,
                     state,
                     request,
-                    f"Чтобы сделать заказ заводу Ponarth, нужно зарегистрировать свое юр. лицо",
-                    reply_reg,
+                    f"Чтобы сделать заказ заводу Ponarth, нужно зарегистрировать свое юр. лицо в системе понарт. Сообщите свое юр. лицо администратору ",
+                    ReplyKeyboardRemove(),
                 )
-                await state.set_state(RegLegalEntityForm.start)
             else:
                 points = await request.get_all_point_company(message.from_user.id)
                 if points == None:
