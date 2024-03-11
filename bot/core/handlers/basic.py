@@ -22,7 +22,6 @@ import logging
 from env import *
 from env import channel_ponarth
 
-
 rt = Router()
 
 sheet = Sheet()
@@ -133,10 +132,9 @@ async def get_start(
                     message,
                     state,
                     request,
-                    f"Чтобы сделать заказ заводу Ponarth, нужно зарегистрировать свое юр. лицо",
-                    reply_reg,
+                    f"Чтобы сделать заказ заводу Ponarth, нужно зарегистрировать свое юр. лицо в системе понарт. Сообщите свое юр. лицо администратору ",
+                    ReplyKeyboardRemove(),
                 )
-                await state.set_state(RegLegalEntityForm.start)
             else:
                 points = await request.get_all_point_company(message.from_user.id)
                 if points == None:
@@ -397,11 +395,6 @@ async def choose_point(
             callback_data=ProductButton(product_name=f"{products[i].name}"),
         )
     kb_products_builder.adjust(3)
-    # kb_products_builder.row(
-    #     InlineKeyboardButton(
-    #         text=f"Выбрать другую торговую точку", callback_data="Choose_point"
-    #     )
-    # )
 
     await send_message(
         message,
@@ -438,6 +431,42 @@ async def process_callback_button1(
     )
 
 
+@rt.message(OrderForm.count, F.text == "Все верно")
+async def count_point(
+    message: Message,
+    request: Request,
+    state: FSMContext,
+):
+    data = await state.get_data()
+
+    id: int = data["user_id"]
+    points = await request.get_all_point_company(id)
+    await send_message(
+        message, state, request, "Выберете торговую точку", await get_keyboard(points)
+    )
+    await state.set_state(OrderForm.choose_products)
+
+
+@rt.message(OrderForm.count, F.text == "Убрать и продолжить")
+async def count_point(
+    message: Message,
+    request: Request,
+    state: FSMContext,
+):
+    data = await state.get_data()
+
+    cur_point = data["point"]
+    product_buf: dict = data["products_buf"]
+    product_buf.pop(cur_point, None)
+
+    id: int = data["user_id"]
+    points = await request.get_all_point_company(id)
+    await send_message(
+        message, state, request, "Выберете торговую точку", await get_keyboard(points)
+    )
+    await state.set_state(OrderForm.choose_products)
+
+
 @rt.message(OrderForm.count)
 async def count_point(
     message: Message,
@@ -454,8 +483,30 @@ async def count_point(
             f"Укажите количество литров одним числом",
             ReplyKeyboardRemove(),
         )
+
+    data = await state.get_data()
+    product_count = data["product_count"]
+    count = int(message.text)
+    count_kega = 0.0
+    if "30" in product_count:
+        count_kega = count / 30
+    else:
+        count_kega = count / 20
+
+    logging.info(f"count for kega - {count_kega}  {product_count}")
+
+    if not count_kega.is_integer():
+        await state.set_state(OrderForm.count)
+        await send_message(
+            message,
+            state,
+            request,
+            f"Укажите количество литров c учетом объема кеги",
+            ReplyKeyboardRemove(),
+        )
     else:
         await state.update_data(count=message.text)
+        await state.update_data(all_point_true=False)
         data = await state.get_data()
         products_dict = data["products_buf"]
         product_count = data["product_count"]
@@ -499,12 +550,55 @@ async def callback_down(
     await bot.delete_message(
         chat_id=call.message.chat.id, message_id=call.message.message_id
     )
+
     data = await state.get_data()
-    # data["products_buf"] = {}
+    cur_point = data["point"]
+    product_buf = data["products_buf"]
+    product_buf_cur_point = product_buf[cur_point]
+    msg_true_product = f"Текущая торговая точка '{cur_point}'\n"
+    for product in product_buf_cur_point:
+        msg_true_product += f"{product} - {product_buf_cur_point[product]}\n"
+
+    await send_call(call, state, request, msg_true_product, reply_true_point)
+
+
+@rt.message(OrderForm.check_point, F.text == "Все верно")
+async def count_point(
+    message: Message,
+    request: Request,
+    state: FSMContext,
+):
+    await state.set_state(OrderForm.check)
+    data = await state.get_data()
+    products_dict = data["products_buf"]
+    answer = f"Ваш заказ:\n"
+    for key, value in products_dict.items():
+        answer += f"{key}\n"
+        for key1, value1 in value.items():
+            answer += f"{key1} - {value1}\n"
+    await state.update_data(bucket=products_dict.copy())
+    products_dict.clear()
+    await send_message(
+        message, state, request, f"{answer}Все верно?", reply_true_order_with_comment
+    )
+
+
+@rt.message(OrderForm.check_point, F.text == "Убрать и продолжить")
+async def count_point(
+    message: Message,
+    request: Request,
+    state: FSMContext,
+):
+    data = await state.get_data()
+
+    cur_point = data["point"]
+    product_buf: dict = data["products_buf"]
+    product_buf.pop(cur_point, None)
+
     id: int = data["user_id"]
     points = await request.get_all_point_company(id)
-    await send_call(
-        call, state, request, "Выберете торговую точку", await get_keyboard(points)
+    await send_message(
+        message, state, request, "Выберете торговую точку", await get_keyboard(points)
     )
     await state.set_state(OrderForm.choose_products)
 
@@ -516,22 +610,19 @@ async def process_callback_button1(
     state: FSMContext,
     request: Request,
 ):
-    await state.set_state(OrderForm.check)
-    data = await state.get_data()
-    products_dict = data["products_buf"]
     await bot.delete_message(
         chat_id=call.message.chat.id, message_id=call.message.message_id
     )
-    answer = f"Ваш заказ:\n"
-    for key, value in products_dict.items():
-        answer += f"{key}\n"
-        for key1, value1 in value.items():
-            answer += f"{key1} - {value1}\n"
-    await state.update_data(bucket=products_dict.copy())
-    products_dict.clear()
-    await send_call(
-        call, state, request, f"{answer}Все верно?", reply_true_order_with_comment
-    )
+    data = await state.get_data()
+    await state.update_data(all_point_true=True)
+    cur_point = data["point"]
+    product_buf = data["products_buf"]
+    product_buf_cur_point = product_buf[cur_point]
+    msg_true_product = f"Текущая торговая точка '{cur_point}'\n"
+    for product in product_buf_cur_point:
+        msg_true_product += f"{product} - {product_buf_cur_point[product]}\n"
+    await state.set_state(OrderForm.check_point)
+    await send_call(call, state, request, msg_true_product, reply_true_point)
 
 
 @rt.message(OrderForm.check)
@@ -562,7 +653,7 @@ async def check(
     if answer == "Оставить комментарий":
         await state.set_state(OrderForm.save_comment)
         await send_message(
-            message, state, request, f"Оставьте свой комментарий", ReplyKeyboardRemove()
+            message, state, request, f"Оставьте свой комментарий", reply_true_order
         )
 
 
@@ -602,20 +693,18 @@ async def choose_date(
     cur_date = start_date
     builder = InlineKeyboardBuilder()
     text_inline = f"{weekday[start_date.weekday()]}"
-    # builder.button(text=text_inline, callback_data=f"set")
+
+    adjust = 0
     for index in range(1, 7):
         cur_date = cur_date + timedelta(days=1)
         if cur_date.weekday() == 5 or cur_date.weekday() == 6:
             continue
+        adjust += 1
         text_inline = f"{weekday[cur_date.weekday()]}"
         builder.button(text=text_inline, callback_data=f"set")
 
     text_for_button = f"{str(start_date.date().day)}.{start_date.strftime('%m')}"
 
-    # builder.button(
-    #     text=text_for_button,
-    #     callback_data=DateCallback(date=start_date.strftime("%Y-%m-%d")),
-    # )
     cur_date = start_date
 
     for index in range(1, 7):
@@ -627,7 +716,7 @@ async def choose_date(
             text=text_for_button,
             callback_data=DateCallback(date=cur_date.strftime("%Y-%m-%d")),
         )
-    builder.adjust(4)
+    builder.adjust(adjust)
     await send_message(
         message=message,
         state=state,
