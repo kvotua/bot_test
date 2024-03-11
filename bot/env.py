@@ -14,4 +14,5 @@ db_user = os.getenv("POSTGRES_USER")
 db_pass = os.getenv("POSTGRES_PASSWORD")
 channel_ponarth = os.getenv("channel_ponarth")
 spreadsheetid = os.getenv("spreadsheetid")
+admin_ponart = os.getenv("admin_ponart_for_register_client")
 # host = os.environ['HOST_TRUE']
