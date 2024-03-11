@@ -458,7 +458,7 @@ async def count_point(
     await state.set_state(OrderForm.choose_products)
 
 
-@rt.message(OrderForm.count, F.text == "Начать заново")
+@rt.message(OrderForm.count, F.text == "Убрать и продолжить")
 async def count_point(
     message: Message,
     request: Request,
@@ -496,6 +496,7 @@ async def count_point(
         )
     else:
         await state.update_data(count=message.text)
+        await state.update_data(all_point_true=False)
         data = await state.get_data()
         products_dict = data["products_buf"]
         product_count = data["product_count"]
@@ -548,7 +549,48 @@ async def callback_down(
     for product in product_buf_cur_point:
         msg_true_product += f"{product} - {product_buf_cur_point[product]}\n"
 
-    await send_call(call, state, request, msg_true_product, reply_true_order)
+    await send_call(call, state, request, msg_true_product, reply_true_point)
+
+
+@rt.message(OrderForm.check_point, F.text == "Все верно")
+async def count_point(
+    message: Message,
+    request: Request,
+    state: FSMContext,
+):
+    await state.set_state(OrderForm.check)
+    data = await state.get_data()
+    products_dict = data["products_buf"]
+    answer = f"Ваш заказ:\n"
+    for key, value in products_dict.items():
+        answer += f"{key}\n"
+        for key1, value1 in value.items():
+            answer += f"{key1} - {value1}\n"
+    await state.update_data(bucket=products_dict.copy())
+    products_dict.clear()
+    await send_message(
+        message, state, request, f"{answer}Все верно?", reply_true_order_with_comment
+    )
+
+
+@rt.message(OrderForm.check_point, F.text == "Убрать и продолжить")
+async def count_point(
+    message: Message,
+    request: Request,
+    state: FSMContext,
+):
+    data = await state.get_data()
+
+    cur_point = data["point"]
+    product_buf: dict = data["products_buf"]
+    product_buf.pop(cur_point, None)
+
+    id: int = data["user_id"]
+    points = await request.get_all_point_company(id)
+    await send_message(
+        message, state, request, "Выберете торговую точку", await get_keyboard(points)
+    )
+    await state.set_state(OrderForm.choose_products)
 
 
 @rt.callback_query(F.data == "End")
@@ -558,22 +600,19 @@ async def process_callback_button1(
     state: FSMContext,
     request: Request,
 ):
-    await state.set_state(OrderForm.check)
-    data = await state.get_data()
-    products_dict = data["products_buf"]
     await bot.delete_message(
         chat_id=call.message.chat.id, message_id=call.message.message_id
     )
-    answer = f"Ваш заказ:\n"
-    for key, value in products_dict.items():
-        answer += f"{key}\n"
-        for key1, value1 in value.items():
-            answer += f"{key1} - {value1}\n"
-    await state.update_data(bucket=products_dict.copy())
-    products_dict.clear()
-    await send_call(
-        call, state, request, f"{answer}Все верно?", reply_true_order_with_comment
-    )
+    data = await state.get_data()
+    await state.update_data(all_point_true=True)
+    cur_point = data["point"]
+    product_buf = data["products_buf"]
+    product_buf_cur_point = product_buf[cur_point]
+    msg_true_product = f"Текущая торговая точка '{cur_point}'\n"
+    for product in product_buf_cur_point:
+        msg_true_product += f"{product} - {product_buf_cur_point[product]}\n"
+    await state.set_state(OrderForm.check_point)
+    await send_call(call, state, request, msg_true_product, reply_true_point)
 
 
 @rt.message(OrderForm.check)
