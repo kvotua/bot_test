@@ -2,6 +2,7 @@ import asyncio
 import logging
 import socket
 
+from aiogram.client.bot import DefaultBotProperties
 from aiogram import Bot, Dispatcher, Router, types
 from aiogram.types import Message
 from aiogram.filters import Command, CommandStart
@@ -34,7 +35,7 @@ async def start_bot(bot: Bot):
     await set_commands(bot)
     await bot.send_message(
         user_id_for_push,
-        text=f"<tg-spoiler>{socket.gethostname()}</tg-spoiler> запустил бота {datetime.datetime.now():%Y-%m-%d %H:%M:%S}",
+        text=f"<tg-spoiler>{socket.gethostname()}</tg-spoiler> запустил бота {datetime.now():%Y-%m-%d %H:%M:%S}",
         reply_markup=ReplyKeyboardRemove(),
     )
 
@@ -42,7 +43,7 @@ async def start_bot(bot: Bot):
 async def stop_bot(bot: Bot):
     await bot.send_message(
         user_id_for_push,
-        text=f"<tg-spoiler>{socket.gethostname()}</tg-spoiler> отключил бота {datetime.datetime.now():%Y-%m-%d %H:%M:%S}",
+        text=f"<tg-spoiler>{socket.gethostname()}</tg-spoiler> отключил бота {datetime.now():%Y-%m-%d %H:%M:%S}",
         reply_markup=ReplyKeyboardRemove(),
     )
 
@@ -54,7 +55,7 @@ async def start():
         "(%(filename)s).%(funcName)s(%(lineno)d) - %(message)s",
     )
 
-    bot = Bot(bot_token, parse_mode="HTML")
+    bot = Bot(bot_token, default=DefaultBotProperties(parse_mode="HTML"))
     dp = Dispatcher()
     dp.include_router(rt)
 
