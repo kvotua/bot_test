@@ -559,7 +559,13 @@ async def callback_down(
     for product in product_buf_cur_point:
         msg_true_product += f"{product} - {product_buf_cur_point[product]}\n"
 
-    await send_call(call, state, request, msg_true_product, reply_true_point)
+    await send_call(
+        call,
+        state,
+        request,
+        f"Текущая торговая точка '{cur_point}'\n",
+        reply_true_point,
+    )
 
 
 @rt.message(OrderForm.check_point, F.text == "Все верно")
@@ -622,7 +628,13 @@ async def process_callback_button1(
     for product in product_buf_cur_point:
         msg_true_product += f"{product} - {product_buf_cur_point[product]}\n"
     await state.set_state(OrderForm.check_point)
-    await send_call(call, state, request, msg_true_product, reply_true_point)
+    await send_call(
+        call,
+        state,
+        request,
+        f"Текущая торговая точка '{cur_point}'\n",
+        reply_true_point,
+    )
 
 
 @rt.message(OrderForm.check)
