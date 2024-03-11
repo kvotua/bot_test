@@ -563,7 +563,7 @@ async def callback_down(
         call,
         state,
         request,
-        f"Текущая торговая точка '{cur_point}'\n",
+        f"Текущая торговая точка {cur_point}\n",
         reply_true_point,
     )
 
@@ -632,7 +632,7 @@ async def process_callback_button1(
         call,
         state,
         request,
-        f"Текущая торговая точка '{cur_point}'\n",
+        f"Текущая торговая точка {cur_point}\n",
         reply_true_point,
     )
 
