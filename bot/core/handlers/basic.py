@@ -22,7 +22,6 @@ import logging
 from env import *
 from env import channel_ponarth
 
-
 rt = Router()
 
 sheet = Sheet()
@@ -407,11 +406,6 @@ async def choose_point(
             callback_data=ProductButton(product_name=f"{products[i].name}"),
         )
     kb_products_builder.adjust(3)
-    # kb_products_builder.row(
-    #     InlineKeyboardButton(
-    #         text=f"Выбрать другую торговую точку", callback_data="Choose_point"
-    #     )
-    # )
 
     await send_message(
         message,
@@ -446,6 +440,42 @@ async def process_callback_button1(
         f'Сколько литров "{product}" вы хотите заказать?',
         ReplyKeyboardRemove(),
     )
+
+
+@rt.message(OrderForm.count, F.text == "Все верно")
+async def count_point(
+    message: Message,
+    request: Request,
+    state: FSMContext,
+):
+    data = await state.get_data()
+
+    id: int = data["user_id"]
+    points = await request.get_all_point_company(id)
+    await send_message(
+        message, state, request, "Выберете торговую точку", await get_keyboard(points)
+    )
+    await state.set_state(OrderForm.choose_products)
+
+
+@rt.message(OrderForm.count, F.text == "Начать заново")
+async def count_point(
+    message: Message,
+    request: Request,
+    state: FSMContext,
+):
+    data = await state.get_data()
+
+    cur_point = data["point"]
+    product_buf: dict = data["products_buf"]
+    product_buf.pop(cur_point, None)
+
+    id: int = data["user_id"]
+    points = await request.get_all_point_company(id)
+    await send_message(
+        message, state, request, "Выберете торговую точку", await get_keyboard(points)
+    )
+    await state.set_state(OrderForm.choose_products)
 
 
 @rt.message(OrderForm.count)
@@ -509,14 +539,16 @@ async def callback_down(
     await bot.delete_message(
         chat_id=call.message.chat.id, message_id=call.message.message_id
     )
+
     data = await state.get_data()
-    # data["products_buf"] = {}
-    id: int = data["user_id"]
-    points = await request.get_all_point_company(id)
-    await send_call(
-        call, state, request, "Выберете торговую точку", await get_keyboard(points)
-    )
-    await state.set_state(OrderForm.choose_products)
+    cur_point = data["point"]
+    product_buf = data["products_buf"]
+    product_buf_cur_point = product_buf[cur_point]
+    msg_true_product = f"Текущая торговая точка '{cur_point}'\n"
+    for product in product_buf_cur_point:
+        msg_true_product += f"{product} - {product_buf_cur_point[product]}\n"
+
+    await send_call(call, state, request, msg_true_product, reply_true_order)
 
 
 @rt.callback_query(F.data == "End")
@@ -572,7 +604,7 @@ async def check(
     if answer == "Оставить комментарий":
         await state.set_state(OrderForm.save_comment)
         await send_message(
-            message, state, request, f"Оставьте свой комментарий", ReplyKeyboardRemove()
+            message, state, request, f"Оставьте свой комментарий", reply_true_order
         )
 
 
@@ -612,20 +644,18 @@ async def choose_date(
     cur_date = start_date
     builder = InlineKeyboardBuilder()
     text_inline = f"{weekday[start_date.weekday()]}"
-    # builder.button(text=text_inline, callback_data=f"set")
+
+    adjust = 0
     for index in range(1, 7):
         cur_date = cur_date + timedelta(days=1)
         if cur_date.weekday() == 5 or cur_date.weekday() == 6:
             continue
+        adjust += 1
         text_inline = f"{weekday[cur_date.weekday()]}"
         builder.button(text=text_inline, callback_data=f"set")
 
     text_for_button = f"{str(start_date.date().day)}.{start_date.strftime('%m')}"
 
-    # builder.button(
-    #     text=text_for_button,
-    #     callback_data=DateCallback(date=start_date.strftime("%Y-%m-%d")),
-    # )
     cur_date = start_date
 
     for index in range(1, 7):
@@ -637,7 +667,7 @@ async def choose_date(
             text=text_for_button,
             callback_data=DateCallback(date=cur_date.strftime("%Y-%m-%d")),
         )
-    builder.adjust(4)
+    builder.adjust(adjust)
     await send_message(
         message=message,
         state=state,
