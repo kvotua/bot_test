@@ -494,6 +494,27 @@ async def count_point(
             f"Укажите количество литров одним числом",
             ReplyKeyboardRemove(),
         )
+
+    data = await state.get_data()
+    product_count = data["product_count"]
+    count = int(message.text)
+    count_kega = 0.0
+    if "30" in product_count:
+        count_kega = count / 30
+    else:
+        count_kega = count / 20
+
+    logging.info(f"count for kega - {count_kega}  {product_count}")
+
+    if not count_kega.is_integer():
+        await state.set_state(OrderForm.count)
+        await send_message(
+            message,
+            state,
+            request,
+            f"Укажите количество литров c учетом объема кеги",
+            ReplyKeyboardRemove(),
+        )
     else:
         await state.update_data(count=message.text)
         await state.update_data(all_point_true=False)
