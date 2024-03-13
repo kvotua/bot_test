@@ -170,6 +170,9 @@ async def add_legel_entity(
     request: Request,
     state: FSMContext,
 ):
+    user: User = await request.get_user(message.from_user.id)
+    if user.role == "admin":
+        await state.update_data(user_id_client=message.text)
     await state.update_data(kind=message.text)
     await send_message(
         message,
@@ -194,7 +197,7 @@ async def add_legel_entity(
 
     user: User = await request.get_user(message.from_user.id)
     if user.role == "admin":
-        user_id_from_admin = data["user_id"]
+        user_id_from_admin = data["user_id_client"]
         await request.add_user(user_id_from_admin, None, None, None, "client")
         await request.add_company(str_temp, user_id_from_admin)
     else:
