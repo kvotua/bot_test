@@ -1,6 +1,6 @@
 .env
 ponarth-orders-from-bot-fb34becd5654.json
-*/.env
+bot/.env
 */.ponarth-orders-from-bot-fb34becd5654.json
-*\.env
+bot\.env
 *\.ponarth-orders-from-bot-fb34becd5654.json
