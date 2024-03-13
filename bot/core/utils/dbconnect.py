@@ -31,10 +31,11 @@ class Request:
     async def user_exist(self, user_id):
         query = f"SELECT * FROM users WHERE user_id={user_id};"
         user = await self.connector.fetchrow(query=query, record_class=User)
-        if id == None:
+        if user == None:
             return False
-        user.update_data()
-        return user
+        else:
+            user.update_data()
+            return user
 
     async def update_user(self, user_id, username, firstname, lastname, role):
         self.add_user(user_id, username, firstname, lastname, role)
