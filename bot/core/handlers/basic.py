@@ -20,7 +20,7 @@ import asyncio
 from datetime import datetime, timedelta
 import logging
 from env import *
-from env import channel_ponarth
+from env import channel_ponarth, admin_ponart
 
 rt = Router()
 
@@ -105,7 +105,9 @@ async def get_start(
     if user_channel_status.status != "left":
         user_is = await request.user_exist(message.from_user.id)
 
-        if (user_is == False and isinstance(user_is, bool)) or user_is.username == None:
+        if (
+            user_is == False and isinstance(user_is, bool)
+        ) or user_is.username == "None":
             await request.add_user(
                 message.from_user.id,
                 message.from_user.username,
@@ -170,6 +172,9 @@ async def add_legel_entity(
     request: Request,
     state: FSMContext,
 ):
+    user: User = await request.get_user(message.from_user.id)
+    if user.role == "admin":
+        await state.update_data(user_id_client=message.text)
     await state.update_data(kind=message.text)
     await send_message(
         message,
@@ -194,7 +199,7 @@ async def add_legel_entity(
 
     user: User = await request.get_user(message.from_user.id)
     if user.role == "admin":
-        user_id_from_admin = data["user_id"]
+        user_id_from_admin = data["user_id_client"]
         await request.add_user(user_id_from_admin, None, None, None, "client")
         await request.add_company(str_temp, user_id_from_admin)
     else:
@@ -328,7 +333,7 @@ async def save_edit(
             message,
             state,
             request,
-            f"Введите адресс в котором находится магазин",
+            f"Введите адресс в котором находится магазин. Например: Мира, 6",
             ReplyKeyboardRemove(),
         )
     await state.set_state(OrderForm.save_edit)
@@ -525,17 +530,16 @@ async def count_point(
         kb_products_builder.row(
             InlineKeyboardButton(
                 text=f"Выбрать другую торговую точку", callback_data="Choose_point"
-            )
-        )
-        kb_products_builder.row(
-            InlineKeyboardButton(text=f"Завершить набор", callback_data="End")
+            ),
+            InlineKeyboardButton(text=f"Завершить набор", callback_data="End"),
+            width=1,
         )
 
         await send_message(
             message,
             state,
             request,
-            f"Выберете следующую позицию",
+            f"Выберете следующую позицию (приставки 20л и 30л обозначают объем кеги, все остальные сорта пива в кегах объем которых 20л)",
             kb_products_builder.as_markup(),
         )
 
@@ -885,6 +889,13 @@ async def choose_date(
         )
 
         # await send_message(message, state, request, date, ReplyKeyboardRemove())
+        await bot.send_message(
+            admin_ponart, f"Новый заказ!\n {order_info} \n {order_data}"
+        )
+        await bot.send_sticker(
+            admin_ponart,
+            "CAACAgUAAxkBAAEqNxJl8eLlonFJnXD6H8siMRkmOpDhFgACvwADcX38FGZ7gxaBdlYFNAQ",
+        )
         await state.clear()
 
 
