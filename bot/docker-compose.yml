@@ -1,6 +1,6 @@
 version: '3.3'
 services:
-  bot:
+  ponarth:
     container_name: bot
     build:
       context: ./
@@ -21,10 +21,14 @@ services:
     ports:
       - 5433:5432
     healthcheck:
-       test: ["CMD-SHELL", "pg_isready -U ponarth_user -d ponarth_requests"]
-       interval: 5s
-       timeout: 5s
-       retries: 5
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U postgres -d ponarth_requests"
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     volumes:
       - ./data:/var/lib/postgresql/data2
 
