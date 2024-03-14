@@ -20,7 +20,7 @@ import asyncio
 from datetime import datetime, timedelta
 import logging
 from env import *
-from env import channel_ponarth
+from env import channel_ponarth, admin_ponart
 
 rt = Router()
 
@@ -88,6 +88,108 @@ weekday = {
 }
 
 
+@rt.message(Command("keyboard"))
+async def keyboard(
+    message: Message,
+    bot: Bot,
+    request: Request,
+    state: FSMContext,
+):
+    products = await request.get_products()
+    products.sort(key=takePlace)
+    products_counts = {}
+    for i in range(len(products)):
+        name = products[i].name
+        products_counts[name] = 0
+    logging.info(products_counts)
+    await state.update_data(products_counts=products_counts)
+
+    await message.answer(
+        "Товары", reply_markup=await get_keyboard_with_text(state, request)
+    )
+
+
+async def get_keyboard_with_text(
+    state: FSMContext,
+    request: Request,
+):
+    data = await state.get_data()
+    products = data["products_counts"]
+
+    rows = []
+    index_count = 0
+    index_row = 0
+    row = []
+    row_second = []
+    for key, value in products.items():
+        row.append(
+            InlineKeyboardButton(
+                text=f"{key} - {value}", callback_data=f"{key}-{value}"
+            )
+        )
+        row_second.append(InlineKeyboardButton(text=f"-", callback_data=f"minus={key}"))
+        row_second.append(InlineKeyboardButton(text=f"+", callback_data=f"plus={key}"))
+        index_count += 1
+        if index_count == 3:
+            rows.append(row)
+            rows.append(row_second)
+            index_row += 1
+            index_count = 0
+            row = []
+            row_second = []
+    index_row += 1
+    rows.append(row)
+    rows.append(row_second)
+    row = []
+    row_second = []
+
+    kb_products_builder = InlineKeyboardBuilder(rows)
+
+    kb_products_builder.row(
+        InlineKeyboardButton(text="Выбрать другую торговую точку", callback_data="Next")
+    )
+    kb_products_builder.row(
+        InlineKeyboardButton(text="Завершить набор", callback_data="End")
+    )
+
+    return kb_products_builder.as_markup()
+
+
+@rt.callback_query(F.data.startswith("minus"))
+async def send_random_value(
+    callback: CallbackQuery,
+    state: FSMContext,
+    request: Request,
+):
+    product = callback.data.split("=")[1]
+    data = await state.get_data()
+    products = data["products_counts"]
+    if products[product] != 0:
+        products[product] -= 20
+    await state.update_data(products_counts=products)
+    await callback.message.edit_reply_markup(
+        reply_markup=await get_keyboard_with_text(state, request)
+    )
+    await callback.answer()
+
+
+@rt.callback_query(F.data.startswith("plus"))
+async def send_random_value(
+    callback: CallbackQuery,
+    state: FSMContext,
+    request: Request,
+):
+    product = callback.data.split("=")[1]
+    data = await state.get_data()
+    products = data["products_counts"]
+    products[product] += 20
+    await state.update_data(products_counts=products)
+    await callback.message.edit_reply_markup(
+        reply_markup=await get_keyboard_with_text(state, request)
+    )
+    await callback.answer()
+
+
 @rt.message(CommandStart())
 async def get_start(
     message: Message,
@@ -105,7 +207,9 @@ async def get_start(
     if user_channel_status.status != "left":
         user_is = await request.user_exist(message.from_user.id)
 
-        if (user_is == False and isinstance(user_is, bool)) or user_is.username == None:
+        if (
+            user_is == False and isinstance(user_is, bool)
+        ) or user_is.username == "None":
             await request.add_user(
                 message.from_user.id,
                 message.from_user.username,
@@ -331,7 +435,7 @@ async def save_edit(
             message,
             state,
             request,
-            f"Введите адресс в котором находится магазин",
+            f"Введите адресс в котором находится магазин. Например: Мира, 6",
             ReplyKeyboardRemove(),
         )
     await state.set_state(OrderForm.save_edit)
@@ -389,48 +493,21 @@ async def choose_point(
     product_start = data["products_buf"]
     product_start[point] = {}
     await state.update_data(products_buf=product_start)
+
     products = await request.get_products()
     products.sort(key=takePlace)
-    kb_products_builder = InlineKeyboardBuilder()
+    products_counts = {}
     for i in range(len(products)):
-        kb_products_builder.button(
-            text=f"{products[i].name}",
-            callback_data=ProductButton(product_name=f"{products[i].name}"),
-        )
-    kb_products_builder.adjust(3)
+        name = products[i].name
+        products_counts[name] = 0
+    await state.update_data(products_counts=products_counts)
 
     await send_message(
         message,
         state,
         request,
         f"Выберете товары (приставки 20л и 30л обозначают объем кеги, все остальные сорта пива в кегах объем которых 20л)",
-        kb_products_builder.as_markup(),
-    )
-
-
-@rt.callback_query(ProductButton.filter())
-async def process_callback_button1(
-    call: CallbackQuery,
-    bot: Bot,
-    state: FSMContext,
-    request: Request,
-):
-    await bot.delete_message(
-        chat_id=call.message.chat.id, message_id=call.message.message_id
-    )
-    await state.set_state(OrderForm.count)
-    product = call.data.split(":")[1].split("_")[0]
-    await state.update_data(product_count=product)
-    data = await state.get_data()
-    products_dict = data["products_buf"]
-    point = data["point"]
-    products_dict[point][product] = 0
-    await send_call(
-        call,
-        state,
-        request,
-        f'Сколько литров "{product}" вы хотите заказать?',
-        ReplyKeyboardRemove(),
+        await get_keyboard_with_text(state, request),
     )
 
 
@@ -470,146 +547,35 @@ async def count_point(
     await state.set_state(OrderForm.choose_products)
 
 
-@rt.message(OrderForm.count)
+@rt.callback_query(F.data == "Next")
 async def count_point(
-    message: Message,
-    request: Request,
-    state: FSMContext,
-):
-    # проверка на int
-    if not message.text.isdigit():
-        await state.set_state(OrderForm.count)
-        await send_message(
-            message,
-            state,
-            request,
-            f"Укажите количество литров одним числом",
-            ReplyKeyboardRemove(),
-        )
-
-    data = await state.get_data()
-    product_count = data["product_count"]
-    count = int(message.text)
-    count_kega = 0.0
-    if "30" in product_count:
-        count_kega = count / 30
-    else:
-        count_kega = count / 20
-
-    logging.info(f"count for kega - {count_kega}  {product_count}")
-
-    if not count_kega.is_integer():
-        await state.set_state(OrderForm.count)
-        await send_message(
-            message,
-            state,
-            request,
-            f"Укажите количество литров c учетом объема кеги",
-            ReplyKeyboardRemove(),
-        )
-    else:
-        await state.update_data(count=message.text)
-        await state.update_data(all_point_true=False)
-        data = await state.get_data()
-        products_dict = data["products_buf"]
-        product_count = data["product_count"]
-        point = data["point"]
-        products_dict[point][product_count] = message.text
-        await state.update_data(products_buf=products_dict)
-        products = await request.get_products()
-        products.sort(key=takePlace)
-        kb_products_builder = InlineKeyboardBuilder()
-        for i in range(len(products)):
-            kb_products_builder.button(
-                text=f"{products[i].name}",
-                callback_data=ProductButton(product_name=f"{products[i].name}"),
-            )
-        kb_products_builder.adjust(3)
-        kb_products_builder.row(
-            InlineKeyboardButton(
-                text=f"Выбрать другую торговую точку", callback_data="Choose_point"
-            )
-        )
-        kb_products_builder.row(
-            InlineKeyboardButton(text=f"Завершить набор", callback_data="End")
-        )
-
-        await send_message(
-            message,
-            state,
-            request,
-            f"Выберете следующую позицию",
-            kb_products_builder.as_markup(),
-        )
-
-
-@rt.callback_query(F.data == "Choose_point")
-async def callback_down(
     call: CallbackQuery,
-    bot: Bot,
-    state: FSMContext,
     request: Request,
+    state: FSMContext,
 ):
-    await bot.delete_message(
-        chat_id=call.message.chat.id, message_id=call.message.message_id
-    )
-
+    await state.set_state(OrderForm.choose_products)
+    await state.update_data(all_point_true=False)
     data = await state.get_data()
-    cur_point = data["point"]
-    product_buf = data["products_buf"]
-    product_buf_cur_point = product_buf[cur_point]
-    msg_true_product = f"Текущая торговая точка {cur_point}\n"
-    for product in product_buf_cur_point:
-        msg_true_product += f"{product} - {product_buf_cur_point[product]}\n"
+    products_dict = data["products_buf"]
+    product_count = data["products_counts"]
+    key = product_count.copy()
+    for key in key.keys():
+        if product_count[key] == 0:
+            del product_count[key]
+    point = data["point"]
+    if product_count != {}:
+        products_dict[point] = product_count
+    await state.update_data(products_buf=products_dict)
 
+    id: int = data["user_id"]
+    points = await request.get_all_point_company(id)
     await send_call(
         call,
         state,
         request,
-        msg_true_product,
-        reply_true_point,
+        f"Выберете следующую торговую точку",
+        await get_keyboard(points),
     )
-
-
-@rt.message(OrderForm.check_point, F.text == "Все верно")
-async def count_point(
-    message: Message,
-    request: Request,
-    state: FSMContext,
-):
-    await state.set_state(OrderForm.check)
-    data = await state.get_data()
-    products_dict = data["products_buf"]
-    answer = f"Ваш заказ:\n"
-    for key, value in products_dict.items():
-        answer += f"{key}\n"
-        for key1, value1 in value.items():
-            answer += f"{key1} - {value1}\n"
-    await state.update_data(bucket=products_dict.copy())
-    products_dict.clear()
-    await send_message(
-        message, state, request, f"{answer}Все верно?", reply_true_order_with_comment
-    )
-
-
-@rt.message(OrderForm.check_point, F.text == "Убрать и продолжить")
-async def count_point(
-    message: Message,
-    request: Request,
-    state: FSMContext,
-):
-    data = await state.get_data()
-
-    cur_point = data["point"]
-    product_buf: dict = data["products_buf"]
-    product_buf.pop(cur_point, None)
-
-    id: int = data["user_id"]
-    points = await request.get_all_point_company(id)
-    await send_message(
-        message, state, request, "Выберете торговую точку", await get_keyboard(points)
-    )
-    await state.set_state(OrderForm.choose_products)
 
 
 @rt.callback_query(F.data == "End")
@@ -619,24 +585,32 @@ async def process_callback_button1(
     state: FSMContext,
     request: Request,
 ):
-    await bot.delete_message(
-        chat_id=call.message.chat.id, message_id=call.message.message_id
-    )
+    await state.set_state(OrderForm.choose_products)
+    await state.update_data(all_point_true=False)
     data = await state.get_data()
-    await state.update_data(all_point_true=True)
-    cur_point = data["point"]
-    product_buf = data["products_buf"]
-    product_buf_cur_point = product_buf[cur_point]
-    msg_true_product = f"Текущая торговая точка {cur_point}\n"
-    for product in product_buf_cur_point:
-        msg_true_product += f"{product} - {product_buf_cur_point[product]}\n"
-    await state.set_state(OrderForm.check_point)
+    products_dict = data["products_buf"]
+    product_count = data["products_counts"]
+    key = product_count.copy()
+    for key in key.keys():
+        if product_count[key] == 0:
+            del product_count[key]
+    point = data["point"]
+    if product_count != {}:
+        products_dict[point] = product_count
+    await state.update_data(products_dict=products_dict)
+    await state.set_state(OrderForm.check)
+    str_true = "Ваш выбор\n"
+    for key, value in products_dict.items():
+        str_true += f"Магазин: {key}\n"
+        for key1, value1 in value.items():
+            str_true += f"{key1} - {value1} литров\n"
+
     await send_call(
         call,
         state,
         request,
-        msg_true_product,
-        reply_true_point,
+        f"Подтвердите {str_true}",
+        reply_true_order_with_comment,
     )
 
 
@@ -681,7 +655,7 @@ async def check(
     await state.set_state(OrderForm.check)
     await state.update_data(comment=message.text)
     data = await state.get_data()
-    bucket = data["bucket"]
+    bucket = data["products_dict"]
     answer = f"Ваш заказ:\n"
     for key, value in bucket.items():
         answer += f"{key}\n"
@@ -753,7 +727,7 @@ async def callback_date(
         await state.set_state(OrderForm.save_order)
         await state.update_data(date_order=date)
         data = await state.get_data()
-        bucket = data["bucket"]
+        bucket = data["products_dict"]
         delivery = data["delivery"]
         date_order = data["date_order"].split(":")[1]
         date_order = datetime.strptime(date_order, "%Y-%m-%d")
@@ -797,7 +771,6 @@ async def callback_date(
         await state.update_data(order_id=order_id)
         logging.info(f"Order id: {order_id}")
         logging.info(bucket)
-        # await request.save_bucket_by_order(order_id, bucket)
 
 
 @rt.message(OrderForm.save_order)
@@ -835,7 +808,6 @@ async def choose_date(
                     await request.delete_message(mes)
                 except Exception as e:
                     message_id = mes["message_id"]
-                    # logging.warn(f"Ошибка при удалении сообщения {e}, {message_id}")
         data = await state.get_data()
         order_data = data["order_str"]
         order_id = data["order_id"]
@@ -844,8 +816,6 @@ async def choose_date(
             message, state, request, new_order, ReplyKeyboardRemove(), False
         )
         order: Order = await request.get_order(order_id=order_id)
-        # bucket = await request.get_bucket(order_id=order_id)
-        # logging.info(bucket)
         user: User = await request.get_user(order.user_id)
         company_id = await request.user_company_exist(user.user_id)
         company: Company = await request.get_company(company_id=company_id)
@@ -857,7 +827,6 @@ async def choose_date(
         order_info.append([f"Заявка№{order.id}:", f"{company.legal_entity}"])
         if order.is_delivery == True:
             order_info.append([f"Вид доставки:", f"До адреса торговой точки"])
-
         else:
             order_info.append([f"Вид доставки:", f"Самовывоз"])
         try:
@@ -870,7 +839,7 @@ async def choose_date(
             [f"Время создания заказа", f"{datetime.now().strftime('%d-%m-%Y %H:%M')}"]
         )
 
-        bucket = (await state.get_data())["bucket"]
+        bucket = (await state.get_data())["products_dict"]
         bucket_temp = []
         for key, value in bucket.items():
             point_id = await request.get_point_by_name(user.user_id, key)
@@ -888,6 +857,13 @@ async def choose_date(
         )
 
         # await send_message(message, state, request, date, ReplyKeyboardRemove())
+        await bot.send_message(
+            admin_ponart, f"Новый заказ!\n {order_info} \n {order_data}"
+        )
+        await bot.send_sticker(
+            admin_ponart,
+            "CAACAgUAAxkBAAEqNxJl8eLlonFJnXD6H8siMRkmOpDhFgACvwADcX38FGZ7gxaBdlYFNAQ",
+        )
         await state.clear()
 
 
