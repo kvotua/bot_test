@@ -530,7 +530,7 @@ class Sheet:
                                 "properties": {
                                     "title": title_list,
                                     "gridProperties": {
-                                        "rowCount": 50,
+                                        "rowCount": 250,
                                         "columnCount": 14,
                                     },
                                 }
