@@ -860,6 +860,7 @@ async def choose_date(
         await bot.send_message(
             admin_ponart, f"Новый заказ!\n {order_info} \n {order_data}"
         )
+        
         await bot.send_sticker(
             admin_ponart,
             "CAACAgUAAxkBAAEqNxJl8eLlonFJnXD6H8siMRkmOpDhFgACvwADcX38FGZ7gxaBdlYFNAQ",
@@ -898,7 +899,7 @@ async def city_point(
         message,
         state,
         request,
-        f"Введите адрес в котором находится магазин",
+        f"Введите адрес в котором находится магазин. Например: Пугачева, 39",
         ReplyKeyboardRemove(),
     )
 
