@@ -113,7 +113,7 @@ reply_true_order_with_comment = ReplyKeyboardMarkup(
 reply_is_delivery = ReplyKeyboardMarkup(
     keyboard=[
         [
-            KeyboardButton(text="Доставка на адрес торговой/ых точки/ек"),
+            KeyboardButton(text="Доставка"),
             KeyboardButton(text="Самовывоз"),
         ]
     ],

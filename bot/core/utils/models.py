@@ -11,6 +11,8 @@ class User(Record):
     firstname: str
     lastname: str
     role: str
+    stuff: bool
+    point_id: int
 
     def update_data(self):
         self.user_id = self["user_id"]
@@ -18,9 +20,11 @@ class User(Record):
         self.firstname = self["firstname"]
         self.lastname = self["lastname"]
         self.role = self["role"]
+        self.stuff = self["stuff"]
+        self.point_id = self["point_id"]
 
     def __str__(self):
-        return f"user_id:{self.user_id} username:{self.username} firstname:{self.firstname} lastname:{self.lastname} role:{self.role}"
+        return f"user_id:{self.user_id} username:{self.username} firstname:{self.firstname} lastname:{self.lastname} role:{self.role} stuff:{self.stuff} point_id{self.point_id}"
 
 
 class Company(Record):

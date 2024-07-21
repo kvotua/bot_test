@@ -66,7 +66,7 @@ async def get_cancel(
         message=message,
         state=state,
         request=request,
-        answer="Cancelled.",
+        answer="Весь набор сброшен.",
         reply=ReplyKeyboardRemove(),
     )
     current_state = await state.get_state()
@@ -105,13 +105,14 @@ async def keyboard(
     await state.update_data(products_counts=products_counts)
 
     await message.answer(
-        "Товары", reply_markup=await get_keyboard_with_text(state, request)
+        "Товары", reply_markup=await get_keyboard_with_text(state=state, request=request)
     )
 
 
 async def get_keyboard_with_text(
     state: FSMContext,
     request: Request,
+    stuff: bool = False
 ):
     data = await state.get_data()
     products = data["products_counts"]
@@ -130,7 +131,7 @@ async def get_keyboard_with_text(
         row_second.append(InlineKeyboardButton(text=f"-", callback_data=f"minus={key}"))
         row_second.append(InlineKeyboardButton(text=f"+", callback_data=f"plus={key}"))
         index_count += 1
-        if index_count == 3:
+        if index_count == 2:
             rows.append(row)
             rows.append(row_second)
             index_row += 1
@@ -144,12 +145,13 @@ async def get_keyboard_with_text(
     row_second = []
 
     kb_products_builder = InlineKeyboardBuilder(rows)
-
+    
+    if stuff != True:
+        kb_products_builder.row(
+            InlineKeyboardButton(text="Выбрать следующую торговую точку", callback_data="Next")
+        )
     kb_products_builder.row(
-        InlineKeyboardButton(text="Выбрать другую торговую точку", callback_data="Next")
-    )
-    kb_products_builder.row(
-        InlineKeyboardButton(text="Завершить набор", callback_data="End")
+        InlineKeyboardButton(text="Оформить заказ", callback_data="End")
     )
 
     return kb_products_builder.as_markup()
@@ -167,9 +169,14 @@ async def send_random_value(
     if products[product] != 0:
         products[product] -= 20
     await state.update_data(products_counts=products)
-    await callback.message.edit_reply_markup(
-        reply_markup=await get_keyboard_with_text(state, request)
-    )
+    if data["stuff"] == True:
+        await callback.message.edit_reply_markup(
+            reply_markup=await get_keyboard_with_text(state=state, request=request, stuff=True)
+        )
+    else: 
+        await callback.message.edit_reply_markup(
+            reply_markup=await get_keyboard_with_text(state=state, request=request, stuff=False)
+        )
     await callback.answer()
 
 
@@ -184,9 +191,14 @@ async def send_random_value(
     products = data["products_counts"]
     products[product] += 20
     await state.update_data(products_counts=products)
-    await callback.message.edit_reply_markup(
-        reply_markup=await get_keyboard_with_text(state, request)
-    )
+    if data["stuff"] == True:
+        await callback.message.edit_reply_markup(
+            reply_markup=await get_keyboard_with_text(state=state, request=request, stuff=True)
+        )
+    else: 
+        await callback.message.edit_reply_markup(
+            reply_markup=await get_keyboard_with_text(state=state, request=request, stuff=False)
+        )
     await callback.answer()
 
 
@@ -240,25 +252,56 @@ async def get_start(
                     ReplyKeyboardRemove(),
                 )
             else:
-                points = await request.get_all_point_company(message.from_user.id)
-                if points == None:
-                    await state.set_state(OrderForm.add_point)
-                    await send_message(
-                        message,
-                        state,
-                        request,
-                        f"Чтобы сделать заказ заводу Ponarth, нужно добавить магазин",
-                        reply_reg_point_v1,
-                    )
+                if user.stuff == True:
+                    if user.point_id != None:
+                        point = await request.get_point(user.point_id)
+
+                        await state.set_state(OrderForm.choose_products)
+                        await state.update_data(products_buf={})
+                        await state.update_data(stuff=True)
+
+                        reply_reg_point_v_stuff = ReplyKeyboardMarkup(
+                            keyboard=[[KeyboardButton(text=f"Сделать заказ на {point}")]],
+                            resize_keyboard=True,
+                            one_time_keyboard=True,
+                            selective=True,
+                        )
+                        await send_message(
+                            message,
+                            state,
+                            request,
+                            f"Вы зарегестрированы за магазином {point}",
+                            reply_reg_point_v_stuff,
+                        )
+                    else:
+                        await send_message(
+                            message,
+                            state,
+                            request,
+                            f"Вас не зарегистрировали за магазином",
+                            ReplyKeyboardRemove(),
+                        )
                 else:
-                    await state.set_state(OrderForm.start)
-                    await send_message(
-                        message,
-                        state,
-                        request,
-                        f"Чтобы сделать заказ заводу Ponarth, нужно выбрать или добавить магазин",
-                        reply_reg_point_v2,
-                    )
+                    await state.update_data(stuff=False)
+                    points = await request.get_all_point_company(message.from_user.id)
+                    if points == None:
+                        await state.set_state(OrderForm.add_point)
+                        await send_message(
+                            message,
+                            state,
+                            request,
+                            f"Чтобы сделать заказ заводу Ponarth, нужно добавить магазин",
+                            reply_reg_point_v1,
+                        )
+                    else:
+                        await state.set_state(OrderForm.start)
+                        await send_message(
+                            message,
+                            state,
+                            request,
+                            f"Чтобы сделать заказ заводу Ponarth, нужно выбрать или добавить магазин",
+                            reply_reg_point_v2,
+                        )
     else:
         logging.info(
             f"user with id:{message.from_user.id} {message.from_user.username} try to use bot"
@@ -502,13 +545,22 @@ async def choose_point(
         products_counts[name] = 0
     await state.update_data(products_counts=products_counts)
 
-    await send_message(
-        message,
-        state,
-        request,
-        f"Выберете товары (приставки 20л и 30л обозначают объем кеги, все остальные сорта пива в кегах объем которых 20л)",
-        await get_keyboard_with_text(state, request),
-    )
+    if data["stuff"] == True:
+        await send_message(
+            message,
+            state,
+            request,
+            f"Выберете товары (приставки 20л и 30л обозначают объем кеги, все остальные сорта пива в кегах объем которых 20л)",
+            await get_keyboard_with_text(state=state, request=request, stuff=True),
+        )
+    else:
+        await send_message(
+            message,
+            state,
+            request,
+            f"Выберете товары (приставки 20л и 30л обозначают объем кеги, все остальные сорта пива в кегах объем которых 20л)",
+            await get_keyboard_with_text(state=state, request=request, stuff=False),
+        )
 
 
 @rt.message(OrderForm.count, F.text == "Все верно")
@@ -563,17 +615,27 @@ async def count_point(
         if product_count[key] == 0:
             del product_count[key]
     point = data["point"]
+    prod_str = ''
     if product_count != {}:
         products_dict[point] = product_count
+        for key, value in product_count.items():
+            prod_str += f"{key} - {value}\n"
     await state.update_data(products_buf=products_dict)
 
     id: int = data["user_id"]
     points = await request.get_all_point_company(id)
+    points_last_choose = products_dict.keys()
+
+    sym_last = " ✅"
+    for i in range(len(points)):
+        pointv2 = points[i].name
+        if pointv2 in points_last_choose: 
+            points[i].address += sym_last
     await send_call(
         call,
         state,
         request,
-        f"Выберете следующую торговую точку",
+        f"Выберете следующую торговую точку\n<b>{point}</b>\n {prod_str}",
         await get_keyboard(points),
     )
 
@@ -601,7 +663,7 @@ async def process_callback_button1(
     await state.set_state(OrderForm.check)
     str_true = "Ваш выбор\n"
     for key, value in products_dict.items():
-        str_true += f"Магазин: {key}\n"
+        str_true += f"Магазин: <b>{key}</b>\n"
         for key1, value1 in value.items():
             str_true += f"{key1} - {value1} литров\n"
 
@@ -658,7 +720,7 @@ async def check(
     bucket = data["products_dict"]
     answer = f"Ваш заказ:\n"
     for key, value in bucket.items():
-        answer += f"{key}\n"
+        answer += f"<b>{key}</b>\n"
         for key1, value1 in value.items():
             answer += f"{key1} - {value1}\n"
     answer += f"{message.text}\n"
@@ -736,20 +798,20 @@ async def callback_date(
         user_id = data["user_id"]
         str = f"Вы выбрали \n"
         for key, value in bucket.items():
-            str += f"{key}:\n"
+            str += f"<b>{key}</b>:\n"
             for key1, value1 in value.items():
                 str += f"{key1}-{value1}\n"
         str_push = ""
         # point_id = await request.get_point_by_name(user_id, point)
         # point_all: Point = await request.get_point(point_id)
         is_delivery = True
-        if delivery == "Доставка на адрес торговой/ых точки/ек":
+        if delivery == "Доставка":
             str_push = (
-                f"{str}По адресу/ам торговой/ых точки/ек\nДата доставки: {date_order}\n"
+                f"{str}Доставка\nДата доставки: {date_order}\n"
             )
         if delivery == "Самовывоз":
             is_delivery = False
-            str_push = f"{str}Вид доставки: Самовывоз\n Дата самовывоза: {date_order}\n"
+            str_push = f"{str}Самовывоз\n Дата самовывоза: {date_order}\n"
         try:
             comment = data["comment"]
             if comment != None:
