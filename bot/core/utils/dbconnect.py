@@ -27,6 +27,21 @@ class Request:
         user: User = await self.connector.fetchrow(query=query, record_class=User)
         user.update_data()
         return user
+    
+    async def get_user_by_company(self, company_id):
+        query = f"SELECT user_id FROM users_company WHERE company_id={company_id};"
+        user_id_record = await self.connector.fetchrow(query=query)
+        user_id: int = user_id_record["user_id"]
+        logging.info(f"user_id: {user_id} user_id_record: {user_id_record}")
+        user: User = await self.get_user(user_id)
+        if user == None:
+            return False
+        else:
+            return user
+    
+    async def update_user_stuff(self, user_id, point_id):
+        query = f"UPDATE users SET stuff='{True}', point_id='{point_id}' WHERE user_id='{user_id}'"
+        await self.connector.execute(query=query)
 
     async def user_exist(self, user_id):
         query = f"SELECT * FROM users WHERE user_id={user_id};"
@@ -54,15 +69,23 @@ class Request:
             return False
         company.update_data()
         return company
+    
+    async def get_company_by_name(self, company_name):
+        query = f"SELECT * FROM company WHERE legal_entity='{company_name}'"
+        company = await self.connector.fetchrow(query=query, record_class=Company)
+        if company == None:
+            return False
+        company.update_data()
+        return company
 
     async def get_all_company(self):
         query = f"SELECT * FROM company"
         companys = await self.connector.fetch(query=query, record_class=Company)
         if companys.__len__() == None:
             return False
-        for company in companys:
-            company.update_data()
-        return company
+        for i in range(len(companys)):
+            companys[i].update_data()
+        return companys
 
     async def add_company(self, kind_name, user_id):
         kind_name = kind_name.upper()
@@ -78,10 +101,15 @@ class Request:
         return id
 
     async def add_user_in_exist_company(self, user_id, company_id):
-        if not self.user_exist(user_id):
+        if not await self.user_exist(user_id):
             self.add_user(
                 user_id, username=None, firstname=None, lastname=None, role="client"
             )
+        query = (
+            f"INSERT INTO users_company (user_id, company_id) VALUES ({user_id}, {company_id});"
+        )
+        await self.connector.execute(query)
+        return company_id
 
     async def user_company_exist(self, user_id) -> bool:
         query = f"SELECT company_id FROM users_company WHERE user_id={user_id}"
@@ -94,6 +122,15 @@ class Request:
         company_id = await self.user_company_exist(user_id)
         if company_id == None:
             return None
+        query = f"SELECT * FROM point_company WHERE company_id={company_id}"
+        points = await self.connector.fetch(query=query, record_class=Point)
+        if points.__len__() == 0:
+            return None
+        for i in range(len(points)):
+            points[i].update_data()
+        return points
+    
+    async def get_all_point_company_by_company_id(self, company_id: int):
         query = f"SELECT * FROM point_company WHERE company_id={company_id}"
         points = await self.connector.fetch(query=query, record_class=Point)
         if points.__len__() == 0:

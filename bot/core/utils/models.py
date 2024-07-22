@@ -30,17 +30,13 @@ class User(Record):
 class Company(Record):
     id: int
     legal_entity: str
-    users: list
 
     def update_data(self):
         self.id = self["id"]
         self.legal_entity = self["legal_entity"]
 
-    def set_users(self, list):
-        self.users = list
-
     def __str__(self):
-        return f"id:{self.id} legal_entity:{self.legal_entity} users:{self.users}"
+        return f"id:{self.id} legal_entity:{self.legal_entity}"
 
 
 class Point(Record):

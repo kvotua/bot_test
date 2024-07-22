@@ -309,6 +309,119 @@ async def get_start(
 
 
 #################### reg client ####################
+@rt.message(RegLegalEntityForm.startStuff)
+async def add_stuff_legel_entity(
+    message: Message,
+    request: Request,
+    state: FSMContext,
+):
+    await state.set_state(RegLegalEntityForm.chooseStuffOrPartner)
+    await state.update_data(company=message.text)
+    logging.info(message.text)
+    await send_message(
+        message,
+        state,
+        request,
+        f"Отправьте контакт",
+        ReplyKeyboardRemove(),
+    )
+
+@rt.message(RegLegalEntityForm.chooseStuffOrPartner)
+async def add_choose_stuff_legel_entity(
+    message: Message,
+    request: Request,
+    state: FSMContext,
+):
+    user_exist = await request.user_company_exist(message.contact.user_id)
+    if user_exist == False:
+        await state.set_state(RegLegalEntityForm.save)
+        logging.info(message.contact.user_id)
+        await state.update_data(user_id=message.contact.user_id)
+        keybord_stuff = ReplyKeyboardBuilder()
+        keybord_stuff.add(KeyboardButton(text=f"Сотрудник"))
+        keybord_stuff.add(KeyboardButton(text=f"Партнер"))
+        await send_message(
+            message,
+            state,
+            request,
+            f"Зарегистрировать как сотрудника(сможет заказывать только на указанный магазин) или как партнера(сможет заказывать на любой магазин)",
+            keybord_stuff.as_markup(resize_keyboard=True,),
+        )
+    else: 
+        company: Company = await request.get_company(user_exist)
+        await state.clear()
+        await send_message(
+            message,
+            state,
+            request,
+            f"Пользователь уже прикреплен к компании {company.legal_entity}",
+            ReplyKeyboardRemove(),
+        )
+    
+@rt.message(RegLegalEntityForm.save)
+async def add_save_stuff_legel_entity(
+    message: Message,
+    request: Request,
+    state: FSMContext,
+):
+    data = await state.get_data()
+    
+    if message.text == "Сотрудник":
+        company = data["company"]
+        company_all_info: Company = await request.get_company_by_name(company)
+        all_point_company = await request.get_all_point_company_by_company_id(company_all_info.id)
+
+        keybord_stuff = ReplyKeyboardBuilder()
+        for point in range(len(all_point_company)):
+            keybord_stuff.add(KeyboardButton(text=f"{all_point_company[point].name}"))
+        await state.set_state(RegLegalEntityForm.chooseStuffPoint)
+        await send_message(
+        message,
+        state,
+        request,
+        f"Выберете магазин",
+        keybord_stuff.as_markup(resize_keyboard=True,),
+        )
+    if message.text == "Партнер":
+        user = data["user_id"]
+        company = data["company"]
+        company_all_info: Company = await request.get_company_by_name(company)
+        await request.add_user(user, None, None, None, "client")
+        await request.add_user_in_exist_company(user, company_all_info.id)
+        await send_message(
+        message,
+        state,
+        request,
+        f"Партнер сохранен",
+        ReplyKeyboardRemove(),
+        )
+        await state.clear()
+
+@rt.message(RegLegalEntityForm.chooseStuffPoint)
+async def add_save_legel_entity(
+    message: Message,
+    request: Request,
+    state: FSMContext,
+):
+    data = await state.get_data()
+    user = data["user_id"]
+    company = data["company"]
+    company_all_info: Company = await request.get_company_by_name(company)
+    poit_name = message.text
+    logging.info(f"company_id: {company_all_info.id}")
+    user_owner: User = await request.get_user_by_company(company_all_info.id)
+    point_id = await request.get_point_by_name(user_owner.user_id, poit_name)
+    await request.add_user(user, None, None, None, "client")
+    await request.add_user_in_exist_company(user, company_all_info.id)
+    await request.update_user_stuff(user, point_id)
+    await send_message(
+        message,
+        state,
+        request,
+        f"Сотрудник сохранен",
+        ReplyKeyboardRemove(),
+        )
+    await state.clear()
 
 
 @rt.message(RegLegalEntityForm.start)
@@ -1098,32 +1211,27 @@ async def add_product(
         )
     elif mes == "Добавить контрагента вручную":
         await state.set_state(RegLegalEntityForm.start)
+        ##добавить список людей из таблицы, которым не присвоены 
         await send_message(
             message,
             state,
             request,
-            f"Введите user_id",
+            f"Выберете контакт",
             ReplyKeyboardRemove(),
         )
     elif mes == "Добавить на юр. лицо еще одного человека":
-        company = request.get_all_company()
+        companys = await request.get_all_company()
+        await state.set_state(RegLegalEntityForm.startStuff)
         keybord_companys = ReplyKeyboardBuilder()
+        for i in range(len(companys)):
+            keybord_companys.add(KeyboardButton(text=f"{companys[i].legal_entity}"))
         await send_message(
             message,
             state,
             request,
             f"Выберете юр. лицо",
-            ReplyKeyboardRemove(),
+            keybord_companys.as_markup(resize_keyboard = True),
         )
-    elif mes == "Добавить контрагенту прайс":
-        await send_message(
-            message,
-            state,
-            request,
-            f"Выберете юр. лицо",
-            ReplyKeyboardRemove(),
-        )
-
 
 @rt.message(ProductForm.save)
 async def save_product(
@@ -1144,12 +1252,12 @@ async def save_product(
                 ReplyKeyboardRemove(),
             )
         else:
-            if "-" not in names:
+            if "-" not in names[i]:
                 await send_message(
                     message,
                     state,
                     request,
-                    f"{names} - введен  не по паттерну",
+                    f"{names} - введен не по паттерну",
                     ReplyKeyboardRemove(),
                 )
                 continue

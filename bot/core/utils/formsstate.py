@@ -32,11 +32,16 @@ class RegLegalEntityForm(StatesGroup):
     start = State()
     kind = State()
     name = State()
+    startStuff = State()
+    chooseStuffOrPartner = State()
+    chooseStuffPoint = State()
+    save = State()
 
 
 class ProductForm(StatesGroup):
     start = State()
     choose_place = State()
+    edit = State()
     edit = State()
     get_orders = State()
     save = State()
