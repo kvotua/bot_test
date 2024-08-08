@@ -178,6 +178,10 @@ class Request:
         )
         await self.connector.execute(query=query)
 
+    async def delete_product(self, id):
+        query = f"DELETE FROM products WHERE id={id}"
+        await self.connector.execute(query=query)
+
     async def change_place(self, product, place):
         query = f"UPDATE products SET place={int(place)} WHERE name='{product}'"
         await self.connector.execute(query=query)

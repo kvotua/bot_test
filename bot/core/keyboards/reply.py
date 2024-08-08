@@ -38,7 +38,7 @@ reply_admin = ReplyKeyboardMarkup(
         [KeyboardButton(text="Просмотреть заказы")],
         [KeyboardButton(text="Просмотреть товары")],
         [KeyboardButton(text="Добавить товар")],
-        [KeyboardButton(text="Указать место продукту")],
+        [KeyboardButton(text="Удалить товар")],
         [KeyboardButton(text="Добавить контрагента вручную")],
         [KeyboardButton(text="Добавить на юр. лицо еще одного человека")],
     ],

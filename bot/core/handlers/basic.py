@@ -167,7 +167,10 @@ async def send_random_value(
     data = await state.get_data()
     products = data["products_counts"]
     if products[product] != 0:
-        products[product] -= 20
+        if "30" in product:
+            products[product] -= 30
+        else:
+            products[product] -= 20
     await state.update_data(products_counts=products)
     if data["stuff"] == True:
         await callback.message.edit_reply_markup(
@@ -189,7 +192,12 @@ async def send_random_value(
     product = callback.data.split("=")[1]
     data = await state.get_data()
     products = data["products_counts"]
-    products[product] += 20
+
+    if "30" in product:
+        products[product] += 30
+    else:
+        products[product] += 20
+
     await state.update_data(products_counts=products)
     if data["stuff"] == True:
         await callback.message.edit_reply_markup(
@@ -1001,7 +1009,7 @@ async def choose_date(
         order_info = []
         order_info.append([f"Заявка№{order.id}:", f"{company.legal_entity}"])
         if order.is_delivery == True:
-            order_info.append([f"Вид доставки:", f"До адреса торговой точки"])
+            order_info.append([f"Вид доставки:", f"Доставка"])
         else:
             order_info.append([f"Вид доставки:", f"Самовывоз"])
         try:
@@ -1010,8 +1018,11 @@ async def choose_date(
                 order_info.append([f"Комментарий к заказу:", f"{comment}"])
         except:
             logging.error("Нет комментария")
+        current_time = datetime.now()
+        time_to_add = timedelta(hours=2)
+        new_time = current_time + time_to_add
         order_info.append(
-            [f"Время создания заказа", f"{datetime.now().strftime('%d-%m-%Y %H:%M')}"]
+            [f"Время создания заказа", f"{new_time.strftime('%d-%m-%Y %H:%M')}"]
         )
 
         bucket = (await state.get_data())["products_dict"]
@@ -1030,14 +1041,21 @@ async def choose_date(
                 order_info=order_info, order_data=order_data, date=date_no_date
             )
         )
+        str_order_for_admin = ''
+        for item in order_info:
+            for index in range(2):
+                str_order_for_admin += str(item[index])
+                str_order_for_admin += ' - '
+            str_order_for_admin += '\n'
 
-        # await send_message(message, state, request, date, ReplyKeyboardRemove())
+        for item in order_data:
+            for index in range(2):
+                str_order_for_admin += str(item[index])
+                str_order_for_admin += ' - '
+            str_order_for_admin += '\n'
+
         await bot.send_message(
-            admin_ponart, f"Новый заказ!\n {order_info} \n {order_data}"
-        )
-        await bot.send_sticker(
-            admin_ponart,
-            "CAACAgUAAxkBAAEqNxJl8eLlonFJnXD6H8siMRkmOpDhFgACvwADcX38FGZ7gxaBdlYFNAQ",
+            admin_ponart, f"Новый заказ!\n {str_order_for_admin}"
         )
         await state.clear()
 
@@ -1186,6 +1204,26 @@ async def add_product(
             f"Введите название продукта или список продуктов и число с указанием места через дефис и через Shift+Enter в общем\n Например: Светлое-4, которое хотите добавить в бота Ponarth.",
             ReplyKeyboardRemove(),
         )
+    elif mes == "Удалить товар":
+        products = await request.get_products()
+        products.sort(key=takePlace)
+
+        but = []
+        for item in products:
+            but.append(
+                [InlineKeyboardButton(text=f"{item.name}", callback_data=f"Delete product:{item.id}:{item.name}")]
+            )
+        rows = []
+        rows.append(but)
+        keyboard_but = InlineKeyboardBuilder(but)
+
+        await send_message(
+            message,
+            state,
+            request,
+            f"Выберете продукт который хотите удалить",
+            reply=keyboard_but.as_markup(),
+        )
     elif mes == "Просмотреть товары":
         products = await request.get_products()
         products.sort(key=takePlace)
@@ -1232,6 +1270,22 @@ async def add_product(
             f"Выберете юр. лицо",
             keybord_companys.as_markup(resize_keyboard = True),
         )
+
+@rt.callback_query(F.data.startswith("Delete product:"))
+async def callback_delete_product(
+    callback_data: CallbackQuery,
+    state: FSMContext,
+    request: Request,):
+        product_id_for_delete = callback_data.data.split(":")[1]
+        await request.delete_product(int(product_id_for_delete))
+        await send_call(
+            callback_data,
+            FSMContext,
+            request,
+            f'Вы удалили {callback_data.data.split(":")[2]}',
+            reply_admin,
+        )    
+
 
 @rt.message(ProductForm.save)
 async def save_product(
