@@ -1320,7 +1320,7 @@ async def save_product(
             product_place = product_data[1]
             products = await request.get_products()
             products.sort(key=takePlace)
-            logging.info(f"{int(product_place)} - {products[int(product_place)].place}")
+            # logging.info(f"{int(product_place)} - {products[int(product_place)].place}")
             if int(product_place) == products[(int(product_place) - 1)].place:
                 for b in range((int(product_place) - 1), (len(products))):
                     await request.change_place(
