@@ -17,7 +17,7 @@ class Request:
         role,
     ):
         query = (
-            f"INSERT INTO users (user_id, username, firstname, lastname, role) VALUES ({user_id}, '{username}', '{firstname}', '{lastname}', '{role}') "
+            f"INSERT INTO users (user_id, username, firstname, lastname, role, stuff) VALUES ({user_id}, '{username}', '{firstname}', '{lastname}', '{role}', '{False}') "
             f"ON CONFLICT (user_id) DO UPDATE SET username='{username}', firstname='{firstname}', lastname='{lastname}';"
         )
         await self.connector.execute(query)
@@ -27,6 +27,15 @@ class Request:
         user: User = await self.connector.fetchrow(query=query, record_class=User)
         user.update_data()
         return user
+    
+    async def update_products(self, products):
+        await self.connector.execute(f"DELETE FROM products")
+        data = [(obj['name'], obj['place']) for obj in products]
+        logging.info(products)
+        logging.info(data)
+        insert_query = f"INSERT INTO products (name, place) VALUES ($1, $2)"
+        await self.connector.executemany(insert_query, data)
+        logging.info('обновление')
     
     async def get_user_by_company(self, company_id):
         query = f"SELECT user_id FROM users_company WHERE company_id={company_id};"

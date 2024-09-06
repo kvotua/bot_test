@@ -440,8 +440,9 @@ async def add_legel_entity(
 ):
     user: User = await request.get_user(message.from_user.id)
     if user.role == "admin":
-        await state.update_data(user_id_client=message.text)
-    await state.update_data(kind=message.text)
+        await state.update_data(user_id_client=message.contact.user_id, last_name=message.contact.last_name, first_name=message.contact.first_name)
+        logging.info(message.contact)
+    await state.update_data(kind=message.contact.user_id)
     await send_message(
         message,
         state,
@@ -466,7 +467,10 @@ async def add_legel_entity(
     user: User = await request.get_user(message.from_user.id)
     if user.role == "admin":
         user_id_from_admin = data["user_id_client"]
-        await request.add_user(user_id_from_admin, None, None, None, "client")
+        last_name = data["last_name"]
+        first_name = data["first_name"]
+        logging.info(user_id_from_admin)
+        await request.add_user(user_id=user_id_from_admin, username='', firstname=first_name, lastname=last_name, role=f"client")
         await request.add_company(str_temp, user_id_from_admin)
     else:
         await request.add_company(str_temp, message.from_user.id)
@@ -1206,8 +1210,7 @@ async def add_product(
         )
     elif mes == "Удалить товар":
         products = await request.get_products()
-        products.sort(key=takePlace)
-
+        logging.info(products)
         but = []
         for item in products:
             but.append(
@@ -1227,6 +1230,9 @@ async def add_product(
     elif mes == "Просмотреть товары":
         products = await request.get_products()
         products.sort(key=takePlace)
+        for i in range(len(products)):
+            await request.change_place(products[i].name, i)
+        products = await request.get_products()
         str = ""
         for i in range(len(products)):
             str += f"- {products[i].name}, позиция - {products[i].place}\n"
@@ -1262,7 +1268,7 @@ async def add_product(
         await state.set_state(RegLegalEntityForm.startStuff)
         keybord_companys = ReplyKeyboardBuilder()
         for i in range(len(companys)):
-            keybord_companys.add(KeyboardButton(text=f"{companys[i].legal_entity}"))
+            keybord_companys.row(KeyboardButton(text=f"{companys[i].legal_entity}"))
         await send_message(
             message,
             state,
@@ -1276,6 +1282,7 @@ async def callback_delete_product(
     callback_data: CallbackQuery,
     state: FSMContext,
     request: Request,):
+        logging.info(callback_data.data)
         product_id_for_delete = callback_data.data.split(":")[1]
         await request.delete_product(int(product_id_for_delete))
         await send_call(
@@ -1320,8 +1327,12 @@ async def save_product(
             product_place = product_data[1]
             products = await request.get_products()
             products.sort(key=takePlace)
-            # logging.info(f"{int(product_place)} - {products[int(product_place)].place}")
-            if int(product_place) == products[(int(product_place) - 1)].place:
+            found_object = next((obj for obj in products if obj.get('place') == int(product_place)), None)
+            logging.info('-----------')
+            logging.info(product_place)
+            logging.info(found_object)
+            logging.info('-----------')
+            if found_object is not None:
                 for b in range((int(product_place) - 1), (len(products))):
                     await request.change_place(
                         products[b].name, (products[b].place + 1)
