@@ -224,6 +224,7 @@ async def get_start(
     request: Request,
     state: FSMContext,
 ):
+    logging.info(state)
     user_channel_status = await bot.get_chat_member(
         chat_id=channel_ponarth, user_id=message.from_user.id
     )
@@ -1002,12 +1003,15 @@ async def choose_date(
                 except Exception as e:
                     message_id = mes["message_id"]
         data = await state.get_data()
+        bucket = (await state.get_data())["products_dict"]
         order_data = data["order_str"]
         order_id = data["order_id"]
         new_order = order_data.replace("Вы выбрали ", f"Заявка №{order_id}")
         await send_message(
             message, state, request, new_order, ReplyKeyboardRemove(), False
         )
+        await state.clear()
+
         order: Order = await request.get_order(order_id=order_id)
         user: User = await request.get_user(order.user_id)
         company_id = await request.user_company_exist(user.user_id)
@@ -1035,7 +1039,6 @@ async def choose_date(
             [f"Время создания заказа", f"{new_time.strftime('%d-%m-%Y %H:%M')}"]
         )
 
-        bucket = (await state.get_data())["products_dict"]
         bucket_temp = []
         for key, value in bucket.items():
             point_id = await request.get_point_by_name(user.user_id, key)
@@ -1067,7 +1070,6 @@ async def choose_date(
         await bot.send_message(
             admin_ponart, f"Новый заказ!\n {str_order_for_admin}"
         )
-        await state.clear()
 
 
 #################### order ####################

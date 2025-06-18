@@ -8,6 +8,8 @@ import asyncpg
 from env import spreadsheetid
 import logging
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
+import functools
 
 
 # print("https://docs.google.com/spreadsheets/d/" + spreadsheetId)
@@ -44,6 +46,7 @@ class Sheet:
             )
             .execute()
         )
+        self.executor = ThreadPoolExecutor(max_workers=3) 
 
     async def link(self):
         return f"https://docs.google.com/spreadsheets/d/{self.spreadsheetId}"
@@ -109,199 +112,258 @@ class Sheet:
             id = sheet["properties"]["sheetId"]
             if id == sheet_id:
                 return sheet["properties"]["title"]
-
+            
     async def save_order(self, order_info: list, order_data: list, date):
-        data_write = []
-        for i in order_info:
-            data_write.append(i)
-        for i in order_data:
-            data_write.append(i)
-        logging.info(data_write)
-        place = await self.what_is_position_for_write_order(date)
-        column_start = place[3]
-        ranges = f"{await self.get_name_sheet_by_id(place[2])}!{place[0]}{column_start}:{place[1]}"
-        result = (
-            self.service.spreadsheets()
-            .values()
-            .batchUpdate(
-                spreadsheetId=self.spreadsheetId,
-                body={
-                    "valueInputOption": "USER_ENTERED",
-                    "data": [
-                        {
+        """Асинхронное сохранение заказа в Google Sheets без блокировки основного потока"""
+        loop = asyncio.get_running_loop()
+        
+        # Создаем синхронную функцию-обертку
+        def _sync_save():
+            try:
+                # Подготовка данных
+                data_write = []
+                data_write.extend(order_info)
+                data_write.extend(order_data)
+                logging.info(f"Данные для записи: {data_write}")
+
+                # Синхронные версии асинхронных методов
+                place = self._what_is_position_for_write_order_sync(date)
+                sheet_name = self._get_name_sheet_by_id_sync(place[2])
+                
+                # Формирование диапазона
+                column_start = place[3]
+                ranges = f"{sheet_name}!{place[0]}{column_start}:{place[1]}"
+                
+                # Запись данных
+                self.service.spreadsheets().values().batchUpdate(
+                    spreadsheetId=self.spreadsheetId,
+                    body={
+                        "valueInputOption": "USER_ENTERED",
+                        "data": [{
                             "range": ranges,
                             "majorDimension": "ROWS",
                             "values": data_write,
-                        }
-                    ],
-                },
-            )
-            .execute()
-        )
-        end_cell = await self.what_is_position_for_write_order(date)
+                        }]
+                    }
+                ).execute()
 
-        logging.info(
-            f"range {ranges} in new kind {place[2]}, {place[4]}{column_start}:{place[5]}{end_cell[3]}"
-        )
+                # Получение конечной позиции
+                end_cell = self._what_is_position_for_write_order_sync(date)
+                logging.info(f"Диапазон записи: {ranges}")
 
-        width_cell_main_line = 10 * (len(data_write[0][1])) / 2
-        if width_cell_main_line < 90:
-            width_cell_main_line = 150
-            result2 = (
-                self.service.spreadsheets()
-                .batchUpdate(
-                    spreadsheetId=self.spreadsheetId,
-                    body={
-                        "requests": [
-                            {
-                                "updateDimensionProperties": {
-                                    "range": {
-                                        "sheetId": place[2],
-                                        "dimension": "COLUMNS",
-                                        "startIndex": place[5],
-                                        "endIndex": (place[5] + 1),
-                                    },
-                                    "properties": {"pixelSize": width_cell_main_line},
-                                    "fields": "pixelSize",
-                                }
-                            },
-                        ]
-                    },
-                )
-                .execute()
+                # Настройка форматирования
+                self._apply_formatting(place, end_cell, data_write)
+                
+                return True
+            except Exception as e:
+                logging.error(f"Ошибка при сохранении: {str(e)}")
+                raise
+
+        # Запускаем синхронную операцию в отдельном потоке
+        try:
+            await loop.run_in_executor(
+                self.executor,
+                _sync_save
             )
-        else:
-            result2 = (
-                self.service.spreadsheets()
-                .batchUpdate(
-                    spreadsheetId=self.spreadsheetId,
-                    body={
-                        "requests": [
-                            {
-                                "updateDimensionProperties": {
-                                    "range": {
-                                        "sheetId": place[2],
-                                        "dimension": "COLUMNS",
-                                        "startIndex": place[5],
-                                        "endIndex": (place[5] + 1),
-                                    },
-                                    "properties": {"pixelSize": width_cell_main_line},
-                                    "fields": "pixelSize",
-                                }
-                            },
-                        ]
-                    },
-                )
-                .execute()
-            )
-        logging.info(f"размер в пикселях: {width_cell_main_line}")
-        result3 = (
-            self.service.spreadsheets()
-            .batchUpdate(
-                spreadsheetId=self.spreadsheetId,
-                body={
-                    "requests": [
-                        {
-                            "updateBorders": {
-                                "range": {
-                                    "sheetId": place[2],
-                                    "startRowIndex": (int(column_start) - 1),
-                                    "endRowIndex": (int(end_cell[3]) - 1),
-                                    "startColumnIndex": place[4],
-                                    "endColumnIndex": (place[5] + 1),
-                                },
-                                "bottom": {
-                                    "style": "SOLID",
-                                    "width": 1,
-                                    "color": {
-                                        "red": 0,
-                                        "green": 0,
-                                        "blue": 0,
-                                        "alpha": 1,
-                                    },
-                                },
-                                "top": {
-                                    "style": "SOLID",
-                                    "width": 1,
-                                    "color": {
-                                        "red": 0,
-                                        "green": 0,
-                                        "blue": 0,
-                                        "alpha": 1,
-                                    },
-                                },
-                                "left": {
-                                    "style": "SOLID",
-                                    "width": 1,
-                                    "color": {
-                                        "red": 0,
-                                        "green": 0,
-                                        "blue": 0,
-                                        "alpha": 1,
-                                    },
-                                },
-                                "right": {
-                                    "style": "SOLID",
-                                    "width": 1,
-                                    "color": {
-                                        "red": 0,
-                                        "green": 0,
-                                        "blue": 0,
-                                        "alpha": 1,
-                                    },
-                                },
-                                "innerHorizontal": {
-                                    "style": "DASHED",
-                                    "width": 1,
-                                    "color": {
-                                        "red": 0,
-                                        "green": 0,
-                                        "blue": 0,
-                                        "alpha": 1,
-                                    },
-                                },
-                                "innerVertical": {
-                                    "style": "DASHED",
-                                    "width": 1,
-                                    "color": {
-                                        "red": 0,
-                                        "green": 0,
-                                        "blue": 0,
-                                        "alpha": 1,
-                                    },
-                                },
-                            }
-                        },
-                        {
-                            "repeatCell": {
-                                "cell": {
-                                    "userEnteredFormat": {
-                                        "horizontalAlignment": "CENTER",
-                                        "backgroundColor": {
-                                            "red": 0.8,
-                                            "green": 1,
-                                            "blue": 0.8,
-                                            "alpha": 1,
-                                        },
-                                        "textFormat": {"bold": True, "fontSize": 10},
-                                        "wrapStrategy": "WRAP",
-                                    }
-                                },
-                                "range": {
-                                    "sheetId": place[2],
-                                    "startRowIndex": (int(column_start) - 1),
-                                    "endRowIndex": int(column_start),
-                                    "startColumnIndex": place[4],
-                                    "endColumnIndex": (place[5] + 1),
-                                },
-                                "fields": "userEnteredFormat",
-                            }
-                        },
-                    ]
-                },
-            )
-            .execute()
-        )
+            logging.info("Заказ успешно сохранен")
+        except Exception as e:
+            logging.error(f"Ошибка в асинхронной обертке: {str(e)}")
+            raise
+
+    # async def save_order(self, order_info: list, order_data: list, date):
+    #     loop = asyncio.get_running_loop()
+    #     def _sync_save():
+    #     data_write = []
+    #     for i in order_info:
+    #         data_write.append(i)
+    #     for i in order_data:
+    #         data_write.append(i)
+    #     logging.info(data_write)
+    #     place = await self.what_is_position_for_write_order(date)
+    #     column_start = place[3]
+    #     ranges = f"{await self.get_name_sheet_by_id(place[2])}!{place[0]}{column_start}:{place[1]}"
+    #     result = (
+    #         self.service.spreadsheets()
+    #         .values()
+    #         .batchUpdate(
+    #             spreadsheetId=self.spreadsheetId,
+    #             body={
+    #                 "valueInputOption": "USER_ENTERED",
+    #                 "data": [
+    #                     {
+    #                         "range": ranges,
+    #                         "majorDimension": "ROWS",
+    #                         "values": data_write,
+    #                     }
+    #                 ],
+    #             },
+    #         )
+    #         .execute()
+    #     )
+    #     end_cell = await self.what_is_position_for_write_order(date)
+
+    #     logging.info(
+    #         f"range {ranges} in new kind {place[2]}, {place[4]}{column_start}:{place[5]}{end_cell[3]}"
+    #     )
+
+    #     width_cell_main_line = 10 * (len(data_write[0][1])) / 2
+    #     if width_cell_main_line < 90:
+    #         width_cell_main_line = 150
+    #         result2 = (
+    #             self.service.spreadsheets()
+    #             .batchUpdate(
+    #                 spreadsheetId=self.spreadsheetId,
+    #                 body={
+    #                     "requests": [
+    #                         {
+    #                             "updateDimensionProperties": {
+    #                                 "range": {
+    #                                     "sheetId": place[2],
+    #                                     "dimension": "COLUMNS",
+    #                                     "startIndex": place[5],
+    #                                     "endIndex": (place[5] + 1),
+    #                                 },
+    #                                 "properties": {"pixelSize": width_cell_main_line},
+    #                                 "fields": "pixelSize",
+    #                             }
+    #                         },
+    #                     ]
+    #                 },
+    #             )
+    #             .execute()
+    #         )
+    #     else:
+    #         result2 = (
+    #             self.service.spreadsheets()
+    #             .batchUpdate(
+    #                 spreadsheetId=self.spreadsheetId,
+    #                 body={
+    #                     "requests": [
+    #                         {
+    #                             "updateDimensionProperties": {
+    #                                 "range": {
+    #                                     "sheetId": place[2],
+    #                                     "dimension": "COLUMNS",
+    #                                     "startIndex": place[5],
+    #                                     "endIndex": (place[5] + 1),
+    #                                 },
+    #                                 "properties": {"pixelSize": width_cell_main_line},
+    #                                 "fields": "pixelSize",
+    #                             }
+    #                         },
+    #                     ]
+    #                 },
+    #             )
+    #             .execute()
+    #         )
+    #     logging.info(f"размер в пикселях: {width_cell_main_line}")
+    #     result3 = (
+    #         self.service.spreadsheets()
+    #         .batchUpdate(
+    #             spreadsheetId=self.spreadsheetId,
+    #             body={
+    #                 "requests": [
+    #                     {
+    #                         "updateBorders": {
+    #                             "range": {
+    #                                 "sheetId": place[2],
+    #                                 "startRowIndex": (int(column_start) - 1),
+    #                                 "endRowIndex": (int(end_cell[3]) - 1),
+    #                                 "startColumnIndex": place[4],
+    #                                 "endColumnIndex": (place[5] + 1),
+    #                             },
+    #                             "bottom": {
+    #                                 "style": "SOLID",
+    #                                 "width": 1,
+    #                                 "color": {
+    #                                     "red": 0,
+    #                                     "green": 0,
+    #                                     "blue": 0,
+    #                                     "alpha": 1,
+    #                                 },
+    #                             },
+    #                             "top": {
+    #                                 "style": "SOLID",
+    #                                 "width": 1,
+    #                                 "color": {
+    #                                     "red": 0,
+    #                                     "green": 0,
+    #                                     "blue": 0,
+    #                                     "alpha": 1,
+    #                                 },
+    #                             },
+    #                             "left": {
+    #                                 "style": "SOLID",
+    #                                 "width": 1,
+    #                                 "color": {
+    #                                     "red": 0,
+    #                                     "green": 0,
+    #                                     "blue": 0,
+    #                                     "alpha": 1,
+    #                                 },
+    #                             },
+    #                             "right": {
+    #                                 "style": "SOLID",
+    #                                 "width": 1,
+    #                                 "color": {
+    #                                     "red": 0,
+    #                                     "green": 0,
+    #                                     "blue": 0,
+    #                                     "alpha": 1,
+    #                                 },
+    #                             },
+    #                             "innerHorizontal": {
+    #                                 "style": "DASHED",
+    #                                 "width": 1,
+    #                                 "color": {
+    #                                     "red": 0,
+    #                                     "green": 0,
+    #                                     "blue": 0,
+    #                                     "alpha": 1,
+    #                                 },
+    #                             },
+    #                             "innerVertical": {
+    #                                 "style": "DASHED",
+    #                                 "width": 1,
+    #                                 "color": {
+    #                                     "red": 0,
+    #                                     "green": 0,
+    #                                     "blue": 0,
+    #                                     "alpha": 1,
+    #                                 },
+    #                             },
+    #                         }
+    #                     },
+    #                     {
+    #                         "repeatCell": {
+    #                             "cell": {
+    #                                 "userEnteredFormat": {
+    #                                     "horizontalAlignment": "CENTER",
+    #                                     "backgroundColor": {
+    #                                         "red": 0.8,
+    #                                         "green": 1,
+    #                                         "blue": 0.8,
+    #                                         "alpha": 1,
+    #                                     },
+    #                                     "textFormat": {"bold": True, "fontSize": 10},
+    #                                     "wrapStrategy": "WRAP",
+    #                                 }
+    #                             },
+    #                             "range": {
+    #                                 "sheetId": place[2],
+    #                                 "startRowIndex": (int(column_start) - 1),
+    #                                 "endRowIndex": int(column_start),
+    #                                 "startColumnIndex": place[4],
+    #                                 "endColumnIndex": (place[5] + 1),
+    #                             },
+    #                             "fields": "userEnteredFormat",
+    #                         }
+    #                     },
+    #                 ]
+    #             },
+    #         )
+    #         .execute()
+    #     )
 
     sheet_column = {
         0: "A",
@@ -320,31 +382,116 @@ class Sheet:
         13: "N",
     }
 
-    async def what_is_position_for_write_order(self, date):
-        id = await self.create_week_by_day(date=date)
-        week = await self.get_week_by_day(date)
+    def _get_name_sheet_by_id_sync(self, sheet_id: int):
+        """Синхронная версия получения имени листа"""
+        spreadsheet = self.service.spreadsheets().get(
+            spreadsheetId=self.spreadsheetId
+        ).execute()
+        for sheet in spreadsheet.get("sheets", []):
+            if sheet["properties"]["sheetId"] == sheet_id:
+                return sheet["properties"]["title"]
+        return None
+
+    def _apply_formatting(self, place, end_cell, data_write):
+        """Синхронное применение форматирования"""
+        width_cell_main_line = max(150, 10 * len(data_write[0][1]) / 2)
+        
+        requests = [
+            {
+                "updateDimensionProperties": {
+                    "range": {
+                        "sheetId": place[2],
+                        "dimension": "COLUMNS",
+                        "startIndex": place[5],
+                        "endIndex": place[5] + 1,
+                    },
+                    "properties": {"pixelSize": width_cell_main_line},
+                    "fields": "pixelSize",
+                }
+            },
+            {
+                "updateBorders": {
+                    "range": {
+                        "sheetId": place[2],
+                        "startRowIndex": int(place[3]) - 1,
+                        "endRowIndex": int(end_cell[3]) - 1,
+                        "startColumnIndex": place[4],
+                        "endColumnIndex": place[5] + 1,
+                    },
+                    "bottom": {"style": "SOLID", "width": 1, "color": {"red": 0, "green": 0, "blue": 0, "alpha": 1}},
+                    "top": {"style": "SOLID", "width": 1, "color": {"red": 0, "green": 0, "blue": 0, "alpha": 1}},
+                    "left": {"style": "SOLID", "width": 1, "color": {"red": 0, "green": 0, "blue": 0, "alpha": 1}},
+                    "right": {"style": "SOLID", "width": 1, "color": {"red": 0, "green": 0, "blue": 0, "alpha": 1}},
+                    "innerHorizontal": {"style": "DASHED", "width": 1, "color": {"red": 0, "green": 0, "blue": 0, "alpha": 1}},
+                    "innerVertical": {"style": "DASHED", "width": 1, "color": {"red": 0, "green": 0, "blue": 0, "alpha": 1}},
+                }
+            },
+            {
+                "repeatCell": {
+                    "cell": {
+                        "userEnteredFormat": {
+                            "horizontalAlignment": "CENTER",
+                            "backgroundColor": {"red": 0.8, "green": 1, "blue": 0.8, "alpha": 1},
+                            "textFormat": {"bold": True, "fontSize": 10},
+                            "wrapStrategy": "WRAP",
+                        }
+                    },
+                    "range": {
+                        "sheetId": place[2],
+                        "startRowIndex": int(place[3]) - 1,
+                        "endRowIndex": int(place[3]),
+                        "startColumnIndex": place[4],
+                        "endColumnIndex": place[5] + 1,
+                    },
+                    "fields": "userEnteredFormat",
+                }
+            }
+        ]
+        
+        self.service.spreadsheets().batchUpdate(
+            spreadsheetId=self.spreadsheetId,
+            body={"requests": requests}
+        ).execute()
+
+    def _what_is_position_for_write_order_sync(self, date):
+        """Синхронная версия поиска позиции для записи заказа"""
+        # Создаем неделю и получаем ID листа
+        id = self._create_week_by_day_sync(date=date)
+        
+        # Получаем дни недели
+        week = self._get_week_by_day_sync(date)
+        
+        # Находим позицию текущего дня в неделе
         place = 0
         for i in range(len(week)):
             if week[i] == date.strftime("%d-%m-%Y"):
                 place = i
         place = place * 2
-        logging.info(f"place: {place}")
-        logging.info(f"sheet name: {await self.get_name_sheet_by_id(id)}")
+        
+        logging.info(f"Найдена позиция: {place}")
+        logging.info(f"Имя листа: {self._get_name_sheet_by_id_sync(id)}")
+        
+        # Определяем колонки
         first_column = f"{self.sheet_column[place]}"
         second_column = f"{self.sheet_column[place+1]}"
-        first = 2
-        second = 7
-        ranges = f"{await self.get_name_sheet_by_id(id)}!{first_column}{first}:{second_column}{second}"
-        logging.info(f"start range {ranges}")
-        cell_start = await self.check_cell_empty(ranges=ranges)
-        while cell_start == None:
-            first += 5
-            second += 5
-            ranges = f"{await self.get_name_sheet_by_id(id)}!{first_column}{first}:{second_column}{second}"
-            logging.info(ranges)
-            cell_start = await self.check_cell_empty(ranges=ranges)
+        first_row = 2
+        second_row = 7
+        
+        # Формируем диапазон для проверки
+        ranges = f"{self._get_name_sheet_by_id_sync(id)}!{first_column}{first_row}:{second_column}{second_row}"
+        logging.info(f"Начальный диапазон: {ranges}")
+        
+        # Проверяем пустые ячейки
+        cell_start = self._check_cell_empty_sync(ranges=ranges)
+        while cell_start is None:
+            first_row += 5
+            second_row += 5
+            ranges = f"{self._get_name_sheet_by_id_sync(id)}!{first_column}{first_row}:{second_column}{second_row}"
+            logging.info(f"Новый диапазон: {ranges}")
+            cell_start = self._check_cell_empty_sync(ranges=ranges)
 
-        column = [
+        # Формируем результат
+        column_info = [
             first_column,
             second_column,
             id,
@@ -352,9 +499,70 @@ class Sheet:
             place,
             (place + 1),
         ]
-        logging.info(f"column info : {column}")
-        return column
+        logging.info(f"Информация о колонке: {column_info}")
+        
+        return column_info
 
+    def _create_week_by_day_sync(self, date):
+        """Синхронная версия создания недели"""
+        week = self._get_week_by_day_sync(date)
+        spreadsheet = self.service.spreadsheets().get(
+            spreadsheetId=self.spreadsheetId
+        ).execute()
+        
+        for sheet in spreadsheet.get("sheets", []):
+            if sheet["properties"]["title"] == week[0]:
+                return sheet["properties"]["sheetId"]
+        
+        return self._write_week_sync(week)
+
+    def _get_week_by_day_sync(self, date):
+        """Синхронная версия получения дней недели"""
+        day_week = date.weekday()
+        now_week = []
+        relative_delta = relativedelta(days=day_week)
+        relative_delta_one_day = relativedelta(days=1)
+        
+        start_week_day = date.date() - relative_delta
+        now_week.append(start_week_day.strftime("%d-%m-%Y"))
+        
+        for i in range(6):
+            date_date = datetime.strptime(now_week[i], "%d-%m-%Y").date()
+            day = (date_date + relative_delta_one_day).strftime("%d-%m-%Y")
+            now_week.append(day)
+        
+        return now_week
+
+    def _check_cell_empty_sync(self, ranges):
+        """Синхронная проверка пустых ячеек"""
+        results = self.service.spreadsheets().values().batchGet(
+            spreadsheetId=self.spreadsheetId,
+            ranges=ranges,
+            valueRenderOption="FORMATTED_VALUE",
+            dateTimeRenderOption="FORMATTED_STRING"
+        ).execute()
+        
+        try:
+            sheet_values_res = results["valueRanges"][0]["values"]
+            logging.info(sheet_values_res)
+        except KeyError:
+            try_range = ranges.split("!")[1].split(":")[0]
+            try_range_0 = ""
+            for char in try_range:
+                if char.isdigit():
+                    try_range_0 += char
+            return try_range_0
+        
+        ranges_parts = ranges.split("!")[1].split(":")
+        start_row = ""
+        for char in ranges_parts[0]:
+            if char.isdigit():
+                start_row += char
+        
+        if len(sheet_values_res) < (int(ranges_parts[1][1:]) - int(start_row) + 1):
+            return str(int(start_row) + len(sheet_values_res))
+        
+        return None
     async def check_cell_empty(self, ranges):
         results = (
             self.service.spreadsheets()
