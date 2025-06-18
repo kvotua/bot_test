@@ -116,7 +116,9 @@ async def get_keyboard_with_text(
 ):
     data = await state.get_data()
     products = data["products_counts"]
+    products_orders = data["products_buf"]
 
+    sum_products = 0
     rows = []
     index_count = 0
     index_row = 0
@@ -128,6 +130,7 @@ async def get_keyboard_with_text(
                 text=f"{key} - {value}", callback_data=f"{key}-{value}"
             )
         )
+        sum_products += value
         row_second.append(InlineKeyboardButton(text=f"-", callback_data=f"minus={key}"))
         row_second.append(InlineKeyboardButton(text=f"+", callback_data=f"plus={key}"))
         index_count += 1
@@ -146,13 +149,17 @@ async def get_keyboard_with_text(
 
     kb_products_builder = InlineKeyboardBuilder(rows)
     
-    if stuff != True:
+    if stuff != True and sum_products > 0:
+        logging.info(products)
         kb_products_builder.row(
             InlineKeyboardButton(text="Выбрать следующую торговую точку", callback_data="Next")
         )
-    kb_products_builder.row(
-        InlineKeyboardButton(text="Оформить заказ", callback_data="End")
-    )
+
+    logging.info(products_orders)
+    if  sum_products > 0:
+        kb_products_builder.row(
+            InlineKeyboardButton(text="Оформить заказ", callback_data="End")
+        )
 
     return kb_products_builder.as_markup()
 
@@ -316,7 +323,6 @@ async def get_start(
         )
 
 
-#################### reg client ####################
 @rt.message(RegLegalEntityForm.startStuff)
 async def add_stuff_legel_entity(
     message: Message,
