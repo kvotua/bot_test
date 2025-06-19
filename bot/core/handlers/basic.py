@@ -1,16 +1,20 @@
 from aiogram import Bot, Router, F
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, UserShared
 from aiogram.types import (
     ReplyKeyboardRemove,
     InlineKeyboardButton,
     CallbackQuery,
 )
+from aiogram.utils.markdown import hbold, hcode
 from aiogram.fsm.context import FSMContext
 from aiogram.filters import Command, CommandStart
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram_calendar import SimpleCalendar, SimpleCalendarCallback
 from aiogram.types.chat_member_administrator import ChatMemberAdministrator
-
+from aiogram.types import (
+    KeyboardButton,
+    KeyboardButtonRequestUser,
+    ReplyKeyboardMarkup,
+)
 from core.utils.dbconnect import Request
 from core.keyboards.reply import *
 from core.utils.models import *
@@ -54,6 +58,59 @@ async def send_call(
     await request.save_message(
         call.from_user.id, msg.message_id, answer, delete, "Callback"
     )
+
+@rt.message(Command("users"))
+async def get_user(message: Message):
+    button = KeyboardButton(
+        text="Выбрать пользователя",
+        request_user=KeyboardButtonRequestUser(
+            request_id=1,  # Уникальный идентификатор
+            user_is_bot=False,  # Только люди (не боты)
+            user_is_premium=None  # Без фильтра по Premium
+        )
+    )
+
+    # Добавление в клавиатуру
+    keyboard = ReplyKeyboardMarkup(
+        keyboard=[[button]],
+        resize_keyboard=True
+    )
+
+    await message.answer(
+        text="Выберите пользователя",
+        reply_markup=keyboard
+    )
+
+
+    @rt.message(F.user_shared)
+    async def handle_user_shared(message: Message, bot: Bot):
+        """Обработчик выбора пользователя"""
+        selected_user_id = message.user_shared.user_id
+        selector_user = message.from_user
+        logging.info(message.user_shared)
+        username=''
+        full_name=''
+        try:
+            user = await bot.get_chat(selected_user_id)
+            username = f"@{user.username}" if user.username else "нет username"
+            full_name = user.full_name
+        except Exception as e:
+            username = "недоступен"
+            full_name = "неизвестно"
+        
+        user_info = (
+            f"👤 {hbold('Информация о пользователе:')}\n"
+            f"🆔 ID: {hcode(selected_user_id)}\n"
+            f"username: {username}\n"
+            f"full_name: {full_name}\n"
+        )
+        
+        await message.answer(
+            user_info,
+            parse_mode="HTML",
+            reply_markup=ReplyKeyboardRemove()  # Убираем клавиатуру
+        )
+
 
 
 @rt.message(Command("cancel"))
@@ -116,7 +173,6 @@ async def get_keyboard_with_text(
 ):
     data = await state.get_data()
     products = data["products_counts"]
-    products_orders = data["products_buf"]
 
     sum_products = 0
     rows = []
@@ -155,7 +211,6 @@ async def get_keyboard_with_text(
             InlineKeyboardButton(text="Выбрать следующую торговую точку", callback_data="Next")
         )
 
-    logging.info(products_orders)
     if  sum_products > 0:
         kb_products_builder.row(
             InlineKeyboardButton(text="Оформить заказ", callback_data="End")
@@ -364,7 +419,6 @@ async def add_choose_stuff_legel_entity(
         )
     else: 
         company: Company = await request.get_company(user_exist)
-        await state.clear()
         await send_message(
             message,
             state,
@@ -372,6 +426,8 @@ async def add_choose_stuff_legel_entity(
             f"Пользователь уже прикреплен к компании {company.legal_entity}",
             ReplyKeyboardRemove(),
         )
+        return
+
     
 @rt.message(RegLegalEntityForm.save)
 async def add_save_stuff_legel_entity(
@@ -385,6 +441,9 @@ async def add_save_stuff_legel_entity(
         company = data["company"]
         company_all_info: Company = await request.get_company_by_name(company)
         all_point_company = await request.get_all_point_company_by_company_id(company_all_info.id)
+        if not all_point_company:  
+            await message.answer("❌ У этой компании нет доступных точек. Сотрудника можно добавить только на одну точку.")
+            return
 
         keybord_stuff = ReplyKeyboardBuilder()
         for point in range(len(all_point_company)):
@@ -490,6 +549,7 @@ async def add_legel_entity(
     )
     await state.clear()
     if user.role == "admin":
+        await state.set_state(ProductForm.start)
         await send_message(
             message, state, request, f"Выберете дальнейшее действие.", reply_admin
         )
@@ -1263,7 +1323,7 @@ async def add_product(
         )
     elif mes == "Добавить контрагента вручную":
         await state.set_state(RegLegalEntityForm.start)
-        ##добавить список людей из таблицы, которым не присвоены 
+
         await send_message(
             message,
             state,
@@ -1287,19 +1347,34 @@ async def add_product(
 
 @rt.callback_query(F.data.startswith("Delete product:"))
 async def callback_delete_product(
-    callback_data: CallbackQuery,
+    callback_query: CallbackQuery,
     state: FSMContext,
     request: Request,):
-        logging.info(callback_data.data)
-        product_id_for_delete = callback_data.data.split(":")[1]
+        logging.info(callback_query.data)
+        product_id_for_delete = callback_query.data.split(":")[1]
         await request.delete_product(int(product_id_for_delete))
-        await send_call(
-            callback_data,
-            FSMContext,
-            request,
-            f'Вы удалили {callback_data.data.split(":")[2]}',
-            reply_admin,
-        )    
+        current_keyboard = callback_query.message.reply_markup
+        # await send_call(
+        #     callback_data,
+        #     FSMContext,
+        #     request,
+        #     f'Вы удалили {callback_data.data.split(":")[2]}',
+        #     reply_admin,
+        # )    
+        new_buttons = []
+        for row in current_keyboard.inline_keyboard:
+            new_row = []
+            for button in row:
+                if button.callback_data != callback_query.data:
+                    new_row.append(button)
+            if new_row: 
+                new_buttons.append(new_row)
+
+        await callback_query.message.edit_reply_markup(
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=new_buttons)
+        )
+
+        await callback_query.answer(f"Товар «{callback_query.data.split(':')[2]}» удалён", show_alert=True)
 
 
 @rt.message(ProductForm.save)

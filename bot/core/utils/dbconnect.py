@@ -203,7 +203,7 @@ class Request:
         return True
 
     async def get_products(self):
-        query = f"SELECT * FROM products"
+        query = f"SELECT * FROM products ORDER BY place"
         products_record = await self.connector.fetch(query=query, record_class=Product)
         if products_record.__len__() == 0:
             return None
