@@ -10,6 +10,7 @@ services:
     ports:
       - 3001:3001
 
+
   db:
     image: postgres:16-alpine
     env_file:
@@ -27,6 +28,16 @@ services:
        retries: 5
     volumes:
       - ./data:/var/lib/postgresql/data2
+      - ./backups:/backups 
+      - ./backup_script.sh:/etc/periodic/daily/backup
+    command: >
+      sh -c "
+      chmod +x /etc/periodic/daily/backup &&
+      echo \"0 3 * * * /etc/periodic/daily/backup\" >> /etc/crontabs/root &&
+      docker-entrypoint.sh postgres &
+      crond -f
+      "
+
 
   pgadmin:
     image: dpage/pgadmin4
