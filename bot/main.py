@@ -14,6 +14,7 @@ from core.middlewares.countermiddleware import *
 from core.handlers.basic import *
 from core.middlewares.countermiddleware import CounterMiddleware
 from core.middlewares.dbmiddleware import DbSession
+from core.service.notificationService import notification_service
 from core.utils.commands import set_commands
 from core.utils.formsstate import *
 import sheets
@@ -66,6 +67,12 @@ async def start():
 
     dp.startup.register(start_bot)
     dp.shutdown.register(stop_bot)
+
+    notification_service.inject_dependencies(pool_connect, bot)
+    await notification_service.add_subscription(
+        user_id=760785124,
+        event_type="all",
+    )
 
     try:
         await dp.start_polling(bot)

@@ -15,6 +15,7 @@ from aiogram.types import (
     KeyboardButtonRequestUser,
     ReplyKeyboardMarkup,
 )
+from core.service.notificationService import notification_service
 from core.utils.dbconnect import Request
 from core.keyboards.reply import *
 from core.utils.models import *
@@ -206,7 +207,6 @@ async def get_keyboard_with_text(
     kb_products_builder = InlineKeyboardBuilder(rows)
     
     if stuff != True and sum_products > 0:
-        logging.info(products)
         kb_products_builder.row(
             InlineKeyboardButton(text="Выбрать следующую торговую точку", callback_data="Next")
         )
@@ -469,6 +469,14 @@ async def add_save_stuff_legel_entity(
         f"Партнер сохранен",
         ReplyKeyboardRemove(),
         )
+        await notification_service.call(
+            event_type="company_add_partner",
+            initiator_id=message.from_user.id,
+            data={
+                "company": company,
+                "username_added": message.from_user.username,
+            }
+        )
         await state.clear()
 
 @rt.message(RegLegalEntityForm.chooseStuffPoint)
@@ -494,6 +502,15 @@ async def add_save_legel_entity(
         request,
         f"Сотрудник сохранен",
         ReplyKeyboardRemove(),
+        )
+    await notification_service.call(
+            event_type="company_add_employee",
+            initiator_id=message.from_user.id,
+            data={
+                "company": company,
+                "point": poit_name,
+                "username_added": message.from_user.username,
+            }
         )
     await state.clear()
 
@@ -538,6 +555,14 @@ async def add_legel_entity(
         logging.info(user_id_from_admin)
         await request.add_user(user_id=user_id_from_admin, username='', firstname=first_name, lastname=last_name, role=f"client")
         await request.add_company(str_temp, user_id_from_admin)
+        await notification_service.call(
+            event_type="add_company",
+            initiator_id=message.from_user.id,
+            data={
+                "company": str_temp,
+                "username_creater": message.from_user.username,
+            }
+        )
     else:
         await request.add_company(str_temp, message.from_user.id)
     await send_message(
@@ -990,7 +1015,9 @@ async def callback_date(
         user_id = data["user_id"]
         str = f"Вы выбрали \n"
         for key, value in bucket.items():
-            str += f"<b>{key}</b>:\n"
+            point_id = await request.get_point_by_name(user_id, key)
+            point = await request.get_point(point_id)
+            str += f"<b>{key}</b> по адресу {point.address}:\n"
             for key1, value1 in value.items():
                 str += f"{key1}-{value1}\n"
         str_push = ""
@@ -999,11 +1026,11 @@ async def callback_date(
         is_delivery = True
         if delivery == "Доставка":
             str_push = (
-                f"{str}Доставка\nДата доставки: {date_order}\n"
+                f"{str}Запрашиваемая дата доставки: {date_order}\n"
             )
         if delivery == "Самовывоз":
             is_delivery = False
-            str_push = f"{str}Самовывоз\n Дата самовывоза: {date_order}\n"
+            str_push = f"{str}Дата самовывоза: {date_order}\n"
         try:
             comment = data["comment"]
             if comment != None:
@@ -1114,6 +1141,8 @@ async def choose_date(
                 order_info=order_info, order_data=order_data, date=date_no_date
             )
         )
+        logging.info(order_info)
+        logging.info(order_data)
         str_order_for_admin = ''
         for item in order_info:
             for index in range(2):
@@ -1126,10 +1155,22 @@ async def choose_date(
                 str_order_for_admin += str(item[index])
                 str_order_for_admin += ' - '
             str_order_for_admin += '\n'
-
-        await bot.send_message(
-            admin_ponart, f"Новый заказ!\n {str_order_for_admin}"
+        lines = new_order.split('\n')  # Разбиваем по переносам
+        without_first_line = '\n'.join(lines[1:]) 
+        await notification_service.call(
+            event_type="new_order",
+            initiator_id=message.from_user.id,
+            data={
+                "company": company.legal_entity,
+                "order_id": order_id,
+                "username": message.from_user.username,
+                "details": without_first_line,
+                "created_at": datetime.now().strftime("%d.%m.%Y %H:%M")
+            }
         )
+        # await bot.send_message(
+        #     admin_ponart, f"Новый заказ!\n {str_order_for_admin}"
+        # )
 
 
 #################### order ####################
@@ -1220,6 +1261,18 @@ async def save_point(
     await request.add_point(
         data["name"], data["address"], data["city"], message.from_user.id
     )
+    company_id = await request.user_company_exist( message.from_user.id)
+    company: Company = await request.get_company(company_id)
+    await notification_service.call(
+        event_type="contragent_create_point",
+        initiator_id=message.from_user.id,
+        data={
+            "username": message.from_user.username,
+            "company": company.legal_entity,
+            "name": data["name"],
+            "address": f"г.{data['city']} {data['address']}",
+        }
+    )
     await state.clear()
     await state.set_state(OrderForm.start)
     await send_message(
@@ -1229,6 +1282,9 @@ async def save_point(
         f"Чтобы сделать заказ заводу Ponarth, нужно выбрать или добавить магазин",
         ReplyKeyboardRemove(),
     )
+    
+    
+    
     await send_message(
         message,
         state,
@@ -1375,7 +1431,16 @@ async def callback_delete_product(
         )
 
         await callback_query.answer(f"Товар «{callback_query.data.split(':')[2]}» удалён", show_alert=True)
-
+        
+        await notification_service.call(
+            event_type="update_beer",
+            initiator_id=callback_query.from_user.id,
+            data={
+                "username": callback_query.from_user.username,
+                "beer_name": callback_query.data.split(':')[2],
+                "move": 'удалено'
+            }
+        )
 
 @rt.message(ProductForm.save)
 async def save_product(
@@ -1383,7 +1448,9 @@ async def save_product(
     request: Request,
     state: FSMContext,
 ):
+    
     names = message.text.split("\n")
+    saved_name= ''
     count = 0
     for i in range(len(names)):
         query_answer = await request.exist_name_product(names[i])
@@ -1428,7 +1495,20 @@ async def save_product(
                 f"{names[i]} - Успешно добавлено",
                 ReplyKeyboardRemove(),
             )
+            if i == len(names)-1:
+                saved_name += f"{product_name}"
+            else:
+                saved_name += f"{product_name}, "
             count += 1
+    await notification_service.call(
+            event_type="update_beer",
+            initiator_id=message.from_user.id,
+            data={
+                "username": message.from_user.username,
+                "beer_name": saved_name,
+                "move": 'добавлено'
+            }
+        )
     await state.clear()
     await send_message(
         message, state, request, f"Позиций добавлено: {count}", ReplyKeyboardRemove()
