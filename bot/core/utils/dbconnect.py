@@ -2,7 +2,7 @@ import asyncpg
 import datetime
 import logging
 from core.utils.models import *
-
+from typing import Optional, Dict, Any
 
 class Request:
     def __init__(self, connector: asyncpg.pool.Pool):
@@ -214,11 +214,11 @@ class Request:
     status = ["created", "processed", "awaiting pickup", "pickup", "delivered"]
 
     async def create_order(
-        self, user_id: int, company_id: int, is_delivery: bool, date
+        self, user_id: int, company_id: int, is_delivery: bool, date, order_data:str
     ):
         temp = str(date).replace("/", "-")
         date_order = datetime.datetime.strptime(temp, "%d-%m-%Y").date()
-        query = f"INSERT INTO orders (date_create_order, user_id, status, company_id, is_delivery, date_delivery) VALUES ('{datetime.datetime.now():%Y-%m-%d %H:%M:%S}', {user_id}, '{self.status[0]}', {company_id}, {is_delivery}, '{date_order}') RETURNING id;"
+        query = f"INSERT INTO orders (date_create_order, user_id, status, company_id, is_delivery, date_delivery, order_data) VALUES ('{datetime.datetime.now():%Y-%m-%d %H:%M:%S}', {user_id}, '{self.status[0]}', {company_id}, {is_delivery}, '{date_order}', '{order_data}') RETURNING id;"
         order_id = await self.connector.fetchrow(query)
         return order_id["id"]
 
@@ -266,3 +266,55 @@ class Request:
         id = message["id"]
         query = f"DELETE FROM message WHERE id={id}"
         await self.connector.execute(query=query)
+
+    async def get_orders_with_delivery_today(self):
+        today = datetime.date.today()
+        query = """
+            SELECT * FROM orders 
+            WHERE date_delivery = $1;
+        """
+        orders = await self.connector.fetch(query, today)
+        orders_dict = {
+            record['id']: {
+                'date_create_order': record['date_create_order'],
+                'user_id': record['user_id'],
+                'status': record['status'],
+                'company_id': record['company_id'],
+                'is_delivery': record['is_delivery'],
+                'date_delivery': record['date_delivery'],
+                'order_data': record['order_data'],
+                'accept': record['accept']
+            }
+            for record in orders
+        }
+        
+        return orders_dict
+    
+    async def get_order_by_id(self, order_id: int) -> Optional[Dict[str, Any]]:
+        """Получает заказ по его ID из базы данных"""
+        query = """
+            SELECT * FROM orders
+            WHERE id = $1;
+        """
+        
+        record = await self.connector.fetchrow(query, order_id)
+        
+        if not record:
+            return None
+        
+        return dict(record)
+    
+    async def update_order_accept(self, order_id: int, accept: bool) -> bool:
+        """Обновляет статус accept для заказа"""
+        query = """
+            UPDATE orders
+            SET accept = $1
+            WHERE id = $2
+            RETURNING id;
+        """
+        try:
+            result = await self.connector.execute(query, accept, order_id)
+            return bool(result)
+        except Exception as e:
+            logging.error(f"Error updating order {order_id}: {e}")
+            return False

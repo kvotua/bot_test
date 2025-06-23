@@ -113,6 +113,133 @@ async def get_user(message: Message):
         )
 
 
+async def format_order_details(order: dict) -> str:
+    """Форматирует информацию о заказе в читаемый вид"""
+    return (
+        f"📦 Заказ #{order['id']}\n"
+        f"👤 Клиент: {order['user_id']}\n"
+        f"📅 Дата создания: {order['date_create_order'].strftime('%d.%m.%Y %H:%M')}\n"
+        f"🚚 Дата доставки: {order['date_delivery'].strftime('%d.%m.%Y')}\n"
+        f"🔖 Статус: {order['status']}\n"
+        f"🏢 Компания: {order['company_id']}\n"
+        f"🚛 Доставка: {'Да' if order['is_delivery'] else 'Нет'}"
+    )
+
+@rt.message(Command("new_orders"))
+async def get_orders(message: Message, request: Request, state: FSMContext):
+    orders = await request.get_orders_with_delivery_today()
+    if not orders:
+        await send_message(
+            message=message,
+            state=state,
+            request=request,
+            answer="На сегодня заказов нет",
+            reply=ReplyKeyboardRemove(),
+        )
+        return
+    buttons = [
+        InlineKeyboardButton(
+           text=f"Заказ #{order_id} {'✅' if orders[order_id].get('accept') else ''}", 
+            callback_data=f"order_{order_id}"
+        )
+        for order_id in orders.keys()
+    ]
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[buttons])
+    main_message = f"📊 Заказов на сегодня: {len(orders)}\nВыберите заказ:"
+    await send_message(
+        message=message,
+        state=state,
+        request=request,
+        answer=f"{main_message}",
+        reply=keyboard,
+    )
+    
+@rt.callback_query(F.data.startswith("order_"))
+async def process_order_button(callback: CallbackQuery, request: Request):
+    order_id = int(callback.data.split('_')[1])
+    await show_single_order(callback, order_id, request)
+
+async def show_single_order(callback: CallbackQuery, order_id: int, request: Request):
+    order = await request.get_order_by_id(order_id)  
+    logging.info(order)
+    if not order:
+        await callback.answer("Заказ не найден")
+        return
+    order_data = order.get('order_data', 'Нет данных')
+    order_data_text = "Нет данных" if order_data is None else str(order_data)
+    order_text = ''
+    if not order.get('accept'):
+        order_text = f"Заявка №{order_id}\n{order_data_text}"
+    else:
+        order_text = f"Заявка №{order_id} ✅\n{order_data_text}"
+    
+    keyboard_buttons = [
+        InlineKeyboardButton(text="◀ Назад", callback_data="back_to_list")
+    ]
+    
+    if not order.get('accept'):
+        keyboard_buttons.append(
+            InlineKeyboardButton(
+                text="✅ Выполнить", 
+                callback_data=f"complete_{order_id}"
+            )
+        )
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[keyboard_buttons])
+    
+    try:
+        await callback.message.edit_text(
+            text=order_text,
+            reply_markup=keyboard
+        )
+    except Exception as e:
+        await callback.answer(order_text)
+    
+    await callback.answer()
+    
+@rt.callback_query(F.data.startswith("complete_"))
+async def complete_order(callback: CallbackQuery, request: Request):
+    order_id = int(callback.data.split('_')[1])
+    
+    success = await request.update_order_accept(order_id, True)
+    
+    if success:
+        await callback.answer("Заказ помечен выполненным!")
+        await back_to_list(callback, request)
+    else:
+        await callback.answer("Ошибка обновления заказа", show_alert=True)
+
+@rt.callback_query(F.data == "back_to_list")
+async def back_to_list(callback: CallbackQuery, request: Request):
+    """Обработчик возврата к списку заказов с редактированием сообщения"""
+    orders = await request.get_orders_with_delivery_today()
+    
+    if not orders:
+        await callback.message.edit_text("📭 На сегодня заказов нет")
+        await callback.answer()
+        return
+    
+    buttons = [
+        InlineKeyboardButton(
+            text=f"Заказ #{order_id} {'✅' if orders[order_id].get('accept') else ''}", 
+            callback_data=f"order_{order_id}"
+        )
+        for order_id in orders.keys()
+    ]
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[buttons[i:i+3] for i in range(0, len(buttons), 3)])
+    
+    try:
+        await callback.message.edit_text(
+            text=f"📊 Заказов на сегодня: {len(orders)}\nВыберите заказ:",
+            reply_markup=keyboard
+        )
+    except Exception as e:
+        logging.error(f"Error editing message: {e}")
+        await callback.answer("Ошибка обновления списка")
+    
+    await callback.answer()
 
 @rt.message(Command("cancel"))
 async def get_cancel(
@@ -1007,7 +1134,6 @@ async def callback_date(
         await state.update_data(date_order=date)
         data = await state.get_data()
         bucket = data["products_dict"]
-        delivery = data["delivery"]
         date_order = data["date_order"].split(":")[1]
         date_order = datetime.strptime(date_order, "%Y-%m-%d")
         date_order = date_order.strftime("%d-%m-%Y")
@@ -1024,6 +1150,7 @@ async def callback_date(
         # point_id = await request.get_point_by_name(user_id, point)
         # point_all: Point = await request.get_point(point_id)
         is_delivery = True
+        delivery = data["delivery"]
         if delivery == "Доставка":
             str_push = (
                 f"{str}Запрашиваемая дата доставки: {date_order}\n"
@@ -1045,12 +1172,6 @@ async def callback_date(
             reply_true_order,
         )
         await state.update_data(order_str=str_push)
-        company_id: int = await request.user_company_exist(user_id)
-        order_id = await request.create_order(
-            user_id, company_id, is_delivery, date_order
-        )
-        await state.update_data(order_id=order_id)
-        logging.info(f"Order id: {order_id}")
         logging.info(bucket)
 
 
@@ -1073,6 +1194,23 @@ async def choose_date(
         await state.clear()
         await state.set_state(OrderForm.choose_products)
     else:
+        data = await state.get_data()
+        user_id = data["user_id"]
+        company_id: int = await request.user_company_exist(user_id)
+        is_delivery = True
+        delivery = data["delivery"]
+        if delivery == "Самовывоз":
+            is_delivery = False
+        date_order = data["date_order"].split(":")[1]
+        date_order = datetime.strptime(date_order, "%Y-%m-%d")
+        date_order = date_order.strftime("%d-%m-%Y")
+        order_data = data["order_str"]
+        
+        order_datas = order_data.replace("Вы выбрали ", "")
+        order_id = await request.create_order(
+            user_id, company_id, is_delivery, date_order,order_datas
+        )
+        
         await send_message(
             message, state, request, f"Сохранение...", ReplyKeyboardRemove()
         )
@@ -1089,10 +1227,7 @@ async def choose_date(
                     await request.delete_message(mes)
                 except Exception as e:
                     message_id = mes["message_id"]
-        data = await state.get_data()
         bucket = (await state.get_data())["products_dict"]
-        order_data = data["order_str"]
-        order_id = data["order_id"]
         new_order = order_data.replace("Вы выбрали ", f"Заявка №{order_id}")
         await send_message(
             message, state, request, new_order, ReplyKeyboardRemove(), False
@@ -1283,8 +1418,6 @@ async def save_point(
         ReplyKeyboardRemove(),
     )
     
-    
-    
     await send_message(
         message,
         state,
@@ -1292,7 +1425,6 @@ async def save_point(
         f"Теперь выберете дальнейшее действие",
         reply_reg_point_v2,
     )
-
 
 @rt.message(OrderForm.save, F.text == "Начать заново")
 async def renew_point(
@@ -1310,11 +1442,9 @@ async def renew_point(
         ReplyKeyboardRemove(),
     )
 
-
 #################### order ####################
 
 #################### product add ####################
-
 
 @rt.message(ProductForm.start)
 async def add_product(
